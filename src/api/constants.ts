@@ -1,5 +1,5 @@
 // API constants
-// In production, use the local /api proxy to avoid mixed content security errors
-const isProduction = process.env.NODE_ENV === 'production';
-const apiBase = isProduction ? '/api' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001');
-export const API_URL = apiBase;
+
+// For local development, it will use http://localhost:3001 if NEXT_PUBLIC_API_URL is not in .env.local.
+// For production (Vercel), it will use the value of NEXT_PUBLIC_API_URL set in Vercel's environment variables.
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
