@@ -476,8 +476,28 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       } else if (part === '[/REF]') {
         inReference = false;
         if (currentRefSegment) {
-          try { currentRefSegment.tag = JSON.parse(currentRefSegment.content.trim()); }
-          catch (e) { console.error('Failed to parse reference JSON:', e); }
+          const contentToParse = currentRefSegment.content.trim();
+          try {
+            currentRefSegment.tag = JSON.parse(contentToParse);
+            // Additional check: ensure parsed tag is an object, as expected for ReferenceTag
+            if (typeof currentRefSegment.tag !== 'object' || currentRefSegment.tag === null) {
+              console.error('Parsed reference JSON is not an object. Content:', `"${contentToParse}"`, 'Parsed as:', currentRefSegment.tag);
+              // Create a synthetic error tag
+              currentRefSegment.tag = {
+                type: 'file', // Default type for error display
+                id: 'parse_error_non_object',
+                text: '[Error: Reference data did not parse as a valid object structure.]'
+              } as ReferenceTag;
+            }
+          } catch (e: any) { // Specify 'any' or 'unknown' for error type
+            console.error('Failed to parse reference JSON. Error:', e.message, 'Content was:', `"${contentToParse}"`);
+            // Create a synthetic error tag
+            currentRefSegment.tag = {
+              type: 'file', // Default type for error display
+              id: 'parse_error',
+              text: `[Error parsing reference content: ${e.message}]`
+            } as ReferenceTag; // Cast to ReferenceTag
+          }
         }
         currentRefSegment = null;
       } else {
