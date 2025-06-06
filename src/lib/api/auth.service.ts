@@ -1,0 +1,142 @@
+import { apiClient } from './client';
+import { AxiosResponse } from 'axios';
+
+export interface User {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  accessToken: string;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterData extends LoginCredentials {
+  firstName?: string;
+  lastName?: string;
+}
+
+export const AuthService = {
+  async login(credentials: LoginCredentials): Promise<AuthResponse> {
+    try {
+      console.log('Sending login request to backend...');
+      
+      // IMPORTANT: apiClient.post already returns the response.data
+      // No need to do response.data again
+      const authResponse = await apiClient.post<AuthResponse>('/auth/login', credentials);
+      console.log('Login API response data:', authResponse);
+      
+      // Validate response format
+      if (!authResponse || !authResponse.accessToken || !authResponse.user) {
+        console.error('Invalid response format from login API', authResponse);
+        throw new Error('Invalid login response format');
+      }
+      
+      // Clear any existing tokens first
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      // Store token and user data in localStorage
+      localStorage.setItem('token', authResponse.accessToken);
+      localStorage.setItem('user', JSON.stringify(authResponse.user));
+      
+      console.log('Login successful, token stored:', { 
+        hasToken: true,
+        tokenLength: authResponse.accessToken.length,
+        user: authResponse.user
+      });
+      
+      // Check that token was properly stored
+      const storedToken = localStorage.getItem('token');
+      console.log('Verification - token in localStorage:', {
+        exists: !!storedToken,
+        length: storedToken?.length
+      });
+      
+      return authResponse;
+    } catch (error) {
+      console.error('Login API error:', error);
+      throw error;
+    }
+  },
+  
+  async register(registerData: RegisterData): Promise<AuthResponse> {
+    try {
+      console.log('Sending registration request...');
+      
+      // IMPORTANT: apiClient.post already returns the response.data
+      // No need to do response.data again
+      const authResponse = await apiClient.post<AuthResponse>('/auth/register', registerData);
+      console.log('Registration response data:', authResponse);
+      
+      // Validate response format
+      if (!authResponse || !authResponse.accessToken || !authResponse.user) {
+        console.error('Invalid response format from registration API', authResponse);
+        throw new Error('Invalid registration response format');
+      }
+      
+      // Clear any existing tokens first
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      // Store token and user data in localStorage
+      localStorage.setItem('token', authResponse.accessToken);
+      localStorage.setItem('user', JSON.stringify(authResponse.user));
+      
+      console.log('Registration successful, token stored:', { 
+        hasToken: true,
+        tokenLength: authResponse.accessToken.length
+      });
+      
+      return authResponse;
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw error;
+    }
+  },
+  
+  logout(): void {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  },
+  
+  getCurrentUser(): User | null {
+    const userJson = localStorage.getItem('user');
+    if (!userJson) return null;
+    
+    try {
+      return JSON.parse(userJson);
+    } catch (e) {
+      return null;
+    }
+  },
+  
+  isAuthenticated(): boolean {
+    return !!localStorage.getItem('token');
+  },
+  
+  async validateToken(): Promise<boolean> {
+    const token = localStorage.getItem('token');
+    if (!token) return false;
+    
+    try {
+      // Call a backend endpoint to validate the token
+      await apiClient.get('/auth/validate');
+      return true;
+    } catch (error: any) {
+      console.error('Token validation error:', error);
+      // Only logout on specific error codes like 401 Unauthorized
+      if (error?.response?.status === 401) {
+        this.logout();
+      }
+      return false;
+    }
+  },
+};

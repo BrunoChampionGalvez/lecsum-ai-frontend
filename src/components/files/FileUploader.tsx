@@ -1,0 +1,372 @@
+"use client";
+
+import React, { useState, useEffect, useRef, DragEvent } from 'react';
+import { FileUpload } from '../ui/FileUpload';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Card } from '../ui/Card';
+import { FilesService, FileType } from '../../lib/api/files.service';
+
+interface FileUploaderProps {
+  courseId: string;
+  onFileUploaded?: () => void;
+  folderId?: string | null;
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUploaded, folderId, isOpen = false, onClose }) => {
+  // Convert props to state to ensure component properly handles open/close
+  const [isModalOpen, setIsModalOpen] = useState(isOpen);
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Store the current folder ID in component state to ensure it's not lost
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(folderId || null);
+  const [textContent, setTextContent] = useState({
+    name: '',
+    content: '',
+    showTextInput: false,
+  });
+  // Track upload progress with current file index and total count
+  const [uploadProgress, setUploadProgress] = useState({
+    currentFileIndex: 0,
+    totalFiles: 0
+  });
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Track changes to isOpen prop
+  useEffect(() => {
+    setIsModalOpen(isOpen);
+  }, [isOpen]);
+  
+  // Track changes to folderId prop
+  useEffect(() => {
+    if (folderId !== undefined) {
+      console.log('FileUploader: Updated folder ID to:', folderId);
+      setCurrentFolderId(folderId);
+    }
+  }, [folderId]);
+  
+  // Handle modal close
+  const handleClose = () => {
+    setIsModalOpen(false);
+    if (onClose) onClose();
+  };
+
+  // Validate file types (allow only PDF, DOCX, TXT)
+  const validateFiles = (filesToValidate: File[]): { valid: File[], invalid: File[] } => {
+    const validTypes = [
+      'application/pdf', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+      'text/plain'
+    ];
+    
+    const valid: File[] = [];
+    const invalid: File[] = [];
+    
+    filesToValidate.forEach(file => {
+      if (validTypes.includes(file.type)) {
+        valid.push(file);
+      } else {
+        invalid.push(file);
+      }
+    });
+    
+    return { valid, invalid };
+  };
+
+  // Handle uploading a single file and update progress
+  const uploadSingleFile = async (file: File, currentIndex: number, totalFiles: number): Promise<void> => {
+    // Update progress to show which file we're currently processing
+    setUploadProgress({
+      currentFileIndex: currentIndex + 1, // +1 for human-readable counting (1-based instead of 0-based)
+      totalFiles: totalFiles
+    });
+    
+    try {
+      // Determine file type and call appropriate API
+      if (file.type === 'application/pdf') {
+        await FilesService.uploadPdfFile(courseId, file, currentFolderId);
+      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        await FilesService.uploadDocxFile(courseId, file, currentFolderId);
+      } else if (file.type === 'text/plain') {
+        await FilesService.uploadTextFile(courseId, file, currentFolderId);
+      } else {
+        throw new Error('Unsupported file type');
+      }
+    } catch (err: any) {
+      console.error(`Upload error for ${file.name}:`, err);
+      throw err;
+    }
+  };
+
+  const handleFileUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+    
+    setIsUploading(true);
+    setError(null);
+    
+    // Validate file types
+    const { valid, invalid } = validateFiles(files);
+    
+    if (invalid.length > 0) {
+      const invalidFileNames = invalid.map(f => f.name).join(', ');
+      setError(`The following files have unsupported formats: ${invalidFileNames}. Only PDF, DOCX, and TXT files are accepted.`);
+      
+      if (valid.length === 0) {
+        setIsUploading(false);
+        return;
+      }
+    }
+    
+    try {
+      console.log(`Uploading ${valid.length} files to folder:`, currentFolderId);
+      
+      // Initialize upload progress with total file count
+      setUploadProgress({
+        currentFileIndex: 0,
+        totalFiles: valid.length
+      });
+      
+      // Upload files sequentially to avoid overwhelming the server
+      for (let i = 0; i < valid.length; i++) {
+        await uploadSingleFile(valid[i], i, valid.length);
+      }
+      
+      if (onFileUploaded) onFileUploaded();
+      handleClose(); // Close modal after successful upload
+    } catch (err: any) {
+      console.error('Upload error:', err, 'Folder ID was:', currentFolderId);
+      setError(err.response?.data?.message || 'Failed to upload one or more files. Please try again.');
+    } finally {
+      setIsUploading(false);
+      // Reset progress
+      setUploadProgress({
+        currentFileIndex: 0,
+        totalFiles: 0
+      });
+    }
+  };
+
+  const handleTextSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!textContent.name || !textContent.content) return;
+    
+    setIsUploading(true);
+    setError(null);
+    
+    try {
+      console.log('Creating text content in folder:', currentFolderId); // Debug log
+      await FilesService.saveTextContent(
+        courseId,
+        textContent.name,
+        textContent.content,
+        currentFolderId
+      );
+      
+      setTextContent({
+        name: '',
+        content: '',
+        showTextInput: false,
+      });
+      
+      if (onFileUploaded) onFileUploaded();
+    } catch (err) {
+      console.error('Error creating text content:', err);
+      setError('Failed to create text content');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  if (!isModalOpen) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 bg-[rgba(0,0,0,0.5)] z-50 flex items-center justify-center">
+      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto relative">
+        <button 
+          className="absolute top-4 right-4 text-gray-500 hover:text-gray-700" 
+          onClick={handleClose}
+          disabled={isUploading}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      
+        {!textContent.showTextInput ? (
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--primary)] mb-4">
+              Upload {folderId ? 'to Folder' : 'Course Files'}
+            </h2>
+            
+            <div 
+              className={`border-2 border-dashed ${isDragging ? 'border-[var(--primary)]' : 'border-gray-300'} rounded-lg p-8 mb-4 text-center`}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(true);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(false);
+              }}
+              onDrop={(e: DragEvent<HTMLDivElement>) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(false);
+                
+                const droppedFiles = Array.from(e.dataTransfer.files);
+                if (droppedFiles.length > 0) {
+                  handleFileUpload(droppedFiles);
+                }
+              }}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <div className="cursor-pointer">
+                <div className="flex flex-col items-center justify-center space-y-2">
+                  <svg
+                    className="w-12 h-12 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    ></path>
+                  </svg>
+                  <div className="text-lg font-medium">Drag and drop files here, or click to select</div>
+                  <div className="text-sm text-gray-500">Supported file types: PDF, DOCX, TXT (max 5MB)</div>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.docx,.txt"
+                  multiple
+                  disabled={isUploading}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      handleFileUpload(Array.from(e.target.files));
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-gray-500 mb-2">or</div>
+              <Button
+                variant="white-outline"
+                onClick={() => setTextContent({ ...textContent, showTextInput: true })}
+                disabled={isUploading}
+              >
+                Enter Text Directly
+              </Button>
+            </div>
+            
+            {error && (
+              <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-md">
+                {error}
+              </div>
+            )}
+            
+            {isUploading && (
+              <div className="mt-4 text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-[var(--primary)] border-t-transparent"></div>
+                <div className="mt-2 text-gray-600">Uploading files...</div>
+                {uploadProgress.totalFiles > 0 && (
+                  <div className="mt-2 text-sm text-gray-500">
+                    Uploading file {uploadProgress.currentFileIndex} of {uploadProgress.totalFiles}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--primary)] mb-4">
+              Enter Text Content
+            </h2>
+            
+            <form onSubmit={handleTextSubmit}>
+              <div className="mb-4">
+                <label htmlFor="fileName" className="block text-sm font-medium text-gray-700 mb-1">
+                  File Name
+                </label>
+                <Input
+                  id="fileName"
+                  value={textContent.name}
+                  onChange={(e) => setTextContent({ ...textContent, name: e.target.value })}
+                  disabled={isUploading}
+                  placeholder="Enter a name for your text file"
+                  required
+                />
+              </div>
+              
+              <div className="mb-4">
+                <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
+                  Content
+                </label>
+                <textarea
+                  id="content"
+                  value={textContent.content}
+                  onChange={(e) => setTextContent({ ...textContent, content: e.target.value })}
+                  disabled={isUploading}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                  rows={8}
+                  placeholder="Enter your text content here"
+                  required
+                ></textarea>
+              </div>
+              
+              <div className="flex space-x-2">
+                <Button
+                  type="submit"
+                  disabled={isUploading}
+                >
+                  Save Text
+                </Button>
+                <Button
+                  type="button"
+                  variant="orange"
+                  onClick={() => setTextContent({ ...textContent, showTextInput: false })}
+                  disabled={isUploading}
+                >
+                  Cancel
+                </Button>
+              </div>
+              
+              {error && (
+                <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-md">
+                  {error}
+                </div>
+              )}
+              
+              {isUploading && (
+                <div className="mt-4 text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-[var(--primary)] border-t-transparent"></div>
+                  <div className="mt-2 text-gray-600">Saving...</div>
+                </div>
+              )}
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

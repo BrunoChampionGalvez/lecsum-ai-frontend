@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+:root {
+  /* Primary Colors */
+  --primary: #0047AB; /* Vibrant Royal Blue */
+  --primary-dark: #003380;
+  --orange: #FF6B35; /* Vibrant Orange */
+  --orange-hover: #FF5722;
+  --orange-light: #FFBE76; /* Bright Soft Orange */
+  --red: #FF3860;
+  --purple: #8B5CF6;
+  
+  /* Secondary Colors */
+  --background: #FFF9EA; /* Light Cream Background */
+  --foreground: #2C3E50;
+  --green: #00bf49;
+  --sky: #7FDBFF; /* Bright Sky Blue */
+  --sky-light: #C7F9FF; /* Very Light Blue */
+  --orange-outline: #fff5f2;
+  --green-outline: #f2fff3;
+  --purple-outline: #f6f1ff;
+  
+  /* Accent Colors */
+  --cyan: #00BCD4; /* Bright Cyan */
+  --light-cyan: #7fcad4;
+  --teal: #00BFA5; /* Vibrant Teal */
+  --light-blue: #E3F2FD; /* Very Light Blue Background */
+  --highlight-yellow: #FFF176; /* Highlight Yellow */
+}
+
+/* Define Tailwind CSS custom properties */
+@layer base {
+  :root {
+    --color-primary: var(--primary);
+    --color-primary-dark: var(--primary-dark);
+    --color-orange: var(--orange);
+    --color-orange-hover: var(--orange-hover);
+    --color-orange-light: var(--orange-light);
+    --color-red: var(--red);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-sky: var(--sky);
+    --color-sky-light: var(--sky-light);
+    --color-cyan: var(--cyan);
+    --color-teal: var(--teal);
+    --color-light-blue: var(--light-blue);
+    --color-highlight-yellow: var(--highlight-yellow);
+    --color-orange-outline: var(--orange-outline);
+    --color-green-outline: var(--green-outline);
+    --color-green: var(--green);
+    --color-purple-outline: var(--purple-outline);
+    --color-purple: var(--purple);
+  }
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', sans-serif;
+}
+
+/* Markdown content styling */
+.markdown-content {
+  width: 100%;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.markdown-content p {
+  margin-bottom: 1rem;
+  white-space: pre-wrap;
+}
+
+.markdown-content code {
+  background-color: #f0f0f0;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 0.9em;
+  overflow-x: auto;
+  max-width: 100%;
+  display: inline-block;
+  white-space: pre-wrap;
+}
+
+.markdown-content pre {
+  background-color: #f0f0f0;
+  padding: 1rem;
+  border-radius: 5px;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.markdown-content pre code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+  display: block;
+}
+
+.markdown-content ul {
+  list-style-type: disc;
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.markdown-content ol {
+  list-style-type: decimal;
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.markdown-content li {
+  margin-bottom: 0.5rem;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid #ddd;
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-bottom: 1rem;
+  color: #666;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  font-weight: bold;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.markdown-content h1 { font-size: 2rem; }
+.markdown-content h2 { font-size: 1.5rem; }
+.markdown-content h3 { font-size: 1.25rem; }
+.markdown-content h4 { font-size: 1rem; }
+
+.markdown-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+  display: block;
+}
+
+.markdown-content table th,
+.markdown-content table td {
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.markdown-content table th {
+  background-color: #f0f0f0;
+}
