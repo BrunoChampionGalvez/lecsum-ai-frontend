@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import { API_URL } from '../../api/constants';
 
 // Base API client configuration
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export class ApiClient {
   private client: AxiosInstance;
