@@ -464,6 +464,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   
   // Parse content into segments preserving the order of text and references
   const parseContentIntoSegments = (content: string): Array<{ type: 'text' | 'reference'; content: string; tag?: ReferenceTag }> => {
+    console.log('[CASCADE_DEBUG] parseContentIntoSegments called with content (first 500 chars):', content.substring(0, 500));
     const parts = content.split(/(\[REF\]|\[\/REF\])/);
     const segments: Array<{ type: 'text' | 'reference'; content: string; tag?: ReferenceTag }> = [];
     let inReference = false;
