@@ -489,13 +489,19 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 text: '[Error: Reference data did not parse as a valid object structure.]'
               } as ReferenceTag;
             }
-          } catch (e: any) { // Specify 'any' or 'unknown' for error type
-            console.error('Failed to parse reference JSON. Error:', e.message, 'Content was:', `"${contentToParse}"`);
+          } catch (e: unknown) { // Changed from any to unknown
+            let errorMessage = 'An unknown error occurred during JSON parsing.';
+            if (e instanceof Error) {
+              errorMessage = e.message;
+            } else if (typeof e === 'string') {
+              errorMessage = e;
+            }
+            console.error('Failed to parse reference JSON. Error:', errorMessage, 'Content was:', `"${contentToParse}"`);
             // Create a synthetic error tag
             currentRefSegment.tag = {
               type: 'file', // Default type for error display
               id: 'parse_error',
-              text: `[Error parsing reference content: ${e.message}]`
+              text: `[Error parsing reference content: ${errorMessage}]`
             } as ReferenceTag; // Cast to ReferenceTag
           }
         }
