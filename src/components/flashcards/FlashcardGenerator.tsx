@@ -1,6 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { DifficultyLevel, FlashcardType, FlashcardsService } from '../../lib/api/flashcards.service';
@@ -23,6 +33,8 @@ export const FlashcardGenerator: React.FC<FlashcardGeneratorProps> = ({
   const [difficulty, setDifficulty] = useState<DifficultyLevel>(DifficultyLevel.MODERATE);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deckName, setDeckName] = useState<string>('Generated Deck');
+  const [flashcardCount, setFlashcardCount] = useState<number>(10);
 
   const handleFileToggle = (fileId: string) => {
     setSelectedFiles((prev) =>
@@ -62,10 +74,14 @@ export const FlashcardGenerator: React.FC<FlashcardGeneratorProps> = ({
         fileIds: selectedFiles,
         types: selectedTypes,
         difficulty,
+        deckName: deckName.trim(),
+        flashcardCount,
+        folderIds: [],
       });
 
       onGenerated();
-    } catch (err: any) {
+    } catch (errRaw) {
+      const err = errRaw as ApiError;
       setError(err.response?.data?.message || 'Failed to generate flashcards. Please try again.');
     } finally {
       setIsGenerating(false);
@@ -173,6 +189,36 @@ export const FlashcardGenerator: React.FC<FlashcardGeneratorProps> = ({
               Hard
             </button>
           </div>
+        </div>
+
+        <div className="mb-4">
+          <label htmlFor="deckName" className="block text-gray-700 font-medium mb-2">
+            Deck Name
+          </label>
+          <input
+            type="text"
+            id="deckName"
+            value={deckName}
+            onChange={(e) => setDeckName(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+            required
+          />
+        </div>
+
+        <div className="mb-4">
+          <label htmlFor="flashcardCount" className="block text-gray-700 font-medium mb-2">
+            Number of Flashcards
+          </label>
+          <input
+            type="number"
+            id="flashcardCount"
+            value={flashcardCount}
+            onChange={(e) => setFlashcardCount(parseInt(e.target.value, 10))}
+            min="1"
+            max="50"
+            className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+            required
+          />
         </div>
 
         <div className="mt-6">

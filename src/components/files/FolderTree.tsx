@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Folder, APIFile } from '../../lib/api/types';
 import { useChatContext } from '@/lib/chat/ChatContext';
 import { MentionedMaterial } from '@/lib/api/chat.service';
@@ -8,7 +8,6 @@ import { Button } from '../ui/Button';
 import { FoldersService } from '../../lib/api/folders.service';
 import { FilesService } from '../../lib/api/files.service';
 import toast from 'react-hot-toast';
-import { Input } from '../ui/Input';
 
 // Skeleton loader for the FolderTree
 export const FolderTreeSkeleton: React.FC = () => {

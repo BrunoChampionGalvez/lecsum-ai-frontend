@@ -7,6 +7,15 @@ import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Course, CreateCourseData } from '../../lib/api/courses.service';
 
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+}
+
 interface CourseFormProps {
   initialData?: Course;
   onSubmit: (data: CreateCourseData) => Promise<void>;
@@ -37,8 +46,9 @@ export const CourseForm: React.FC<CourseFormProps> = ({
       try {
         setError(null);
         await onSubmit(values);
-      } catch (err: any) {
-        setError(err.response?.data?.message || 'Failed to save course. Please try again.');
+      } catch (errRaw) {
+        const err = errRaw as ApiError;
+        setError(err.response?.data?.message || err.message || 'Failed to save course. Please try again.');
       } finally {
         setSubmitting(false);
       }

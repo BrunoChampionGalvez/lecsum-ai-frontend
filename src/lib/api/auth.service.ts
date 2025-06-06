@@ -1,5 +1,14 @@
 import { apiClient } from './client';
-import { AxiosResponse } from 'axios';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
 
 export interface User {
   id: string;
@@ -61,7 +70,8 @@ export const AuthService = {
       });
       
       return authResponse;
-    } catch (error) {
+    } catch (errorRaw) {
+      const error = errorRaw as ApiError;
       console.error('Login API error:', error);
       throw error;
     }
@@ -96,7 +106,8 @@ export const AuthService = {
       });
       
       return authResponse;
-    } catch (error) {
+    } catch (errorRaw) {
+      const error = errorRaw as ApiError;
       console.error('Registration error:', error);
       throw error;
     }
@@ -113,7 +124,8 @@ export const AuthService = {
     
     try {
       return JSON.parse(userJson);
-    } catch (e) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (_e: unknown) {
       return null;
     }
   },
@@ -130,10 +142,11 @@ export const AuthService = {
       // Call a backend endpoint to validate the token
       await apiClient.get('/auth/validate');
       return true;
-    } catch (error: any) {
-      console.error('Token validation error:', error);
+    } catch (errorRaw: unknown) {
+      const validationError = errorRaw as ApiError;
+      console.error('Token validation error:', validationError);
       // Only logout on specific error codes like 401 Unauthorized
-      if (error?.response?.status === 401) {
+      if (validationError?.response?.status === 401) {
         this.logout();
       }
       return false;

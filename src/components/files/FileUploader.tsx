@@ -1,11 +1,19 @@
 "use client";
 
 import React, { useState, useEffect, useRef, DragEvent } from 'react';
-import { FileUpload } from '../ui/FileUpload';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Card } from '../ui/Card';
-import { FilesService, FileType } from '../../lib/api/files.service';
+import { FilesService } from '../../lib/api/files.service';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
 
 interface FileUploaderProps {
   courseId: string;
@@ -95,7 +103,8 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
       } else {
         throw new Error('Unsupported file type');
       }
-    } catch (err: any) {
+    } catch (errRaw) {
+      const err = errRaw as ApiError;
       console.error(`Upload error for ${file.name}:`, err);
       throw err;
     }
@@ -136,9 +145,10 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
       
       if (onFileUploaded) onFileUploaded();
       handleClose(); // Close modal after successful upload
-    } catch (err: any) {
+    } catch (errRaw) {
+      const err = errRaw as ApiError;
       console.error('Upload error:', err, 'Folder ID was:', currentFolderId);
-      setError(err.response?.data?.message || 'Failed to upload one or more files. Please try again.');
+      setError(err.response?.data?.message || err.message || 'Failed to upload one or more files. Please try again.');
     } finally {
       setIsUploading(false);
       // Reset progress

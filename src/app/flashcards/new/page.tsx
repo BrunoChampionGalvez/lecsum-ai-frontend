@@ -6,6 +6,9 @@ import { NewDeckForm } from '../../../components/flashcards/NewDeckForm';
 import { useSubscriptionLimits } from '../../../hooks/useSubscriptionLimits';
 
 export default function NewFlashcardDeckPage() {
+  const { remaining } = useSubscriptionLimits();
+  const reachedLimit = remaining.flashcards <= 0;
+
   return (
     <ProtectedRoute>
       <MainLayout>
@@ -17,10 +20,6 @@ export default function NewFlashcardDeckPage() {
         </div>
         
         {/* Subscription limit warning and disable logic */}
-        {(() => {
-          const { remaining } = useSubscriptionLimits();
-          const reachedLimit = remaining.flashcards <= 0;
-          return (
             <>
               {reachedLimit && (
                 <div className="px-4 py-2 mb-4 text-sm text-red-800 bg-red-50 rounded-md border border-red-200">
@@ -29,8 +28,6 @@ export default function NewFlashcardDeckPage() {
               )}
               <NewDeckForm disabled={reachedLimit} />
             </>
-          );
-        })()}
 
       </MainLayout>
     </ProtectedRoute>

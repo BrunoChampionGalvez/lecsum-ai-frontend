@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { LecsiChatSidebar } from "../components/chat/LecsiChatSidebar";
 import { usePathname } from "next/navigation";
 import { useAuthWatcher } from "../lib/auth/useAuthWatcher";
@@ -18,7 +18,6 @@ const PROTECTED_PATHS = [
 export default function LecsiChatSidebarClientWrapper() {
   const pathname = usePathname();
   const { isAuthenticated, isInitialized } = useAuthWatcher();
-  const [shouldShow, setShouldShow] = useState(false);
 
   // Check if current path is in the protected list or starts with one of the protected paths
   const isProtectedPath = PROTECTED_PATHS.some(path => 
@@ -36,7 +35,6 @@ export default function LecsiChatSidebarClientWrapper() {
     const showSidebar = isInitialized && isAuthenticated && !isProtectedPath;
     
     console.log("[Sidebar] Should show:", showSidebar);
-    setShouldShow(showSidebar);
   }, [isAuthenticated, pathname, isInitialized, isProtectedPath]);
 
   // Don't render anything if not initialized, not authenticated, or on a protected path

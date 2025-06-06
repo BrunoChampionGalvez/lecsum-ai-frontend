@@ -10,7 +10,7 @@ interface FlashcardGenerationClientProps {
 }
 
 export default function FlashcardGenerationClient({ courseId, initialFiles }: FlashcardGenerationClientProps) {
-  const [files, setFiles] = useState<AppFile[]>(initialFiles);
+  const [files] = useState<AppFile[]>(initialFiles);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGenerated = async () => {

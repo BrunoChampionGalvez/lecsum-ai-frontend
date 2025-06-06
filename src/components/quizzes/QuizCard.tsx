@@ -43,11 +43,11 @@ export const QuizCard: React.FC<QuizCardProps> = ({ quiz }) => {
           <div className="mt-2">Questions: {quiz.questionCount}</div>
           <div className="mt-1">Created: {formatDate(quiz.createdAt)}</div>
           
-          {quiz.completed && quiz.score !== undefined && (
+          {quiz.completed && quiz.lastScore !== undefined && (
             <div className="mt-3 flex items-center">
               <span className="mr-2">Score:</span>
-              <Badge variant={getScoreBadgeColor(quiz.score)}>
-                {quiz.score.toFixed(0)}%
+              <Badge variant={getScoreBadgeColor(quiz.lastScore)}>
+                {quiz.lastScore.toFixed(0)}%
               </Badge>
             </div>
           )}

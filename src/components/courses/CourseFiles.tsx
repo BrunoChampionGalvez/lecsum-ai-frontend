@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { APIFile, Folder } from "@/lib/api/types";
-import { FilesService } from "@/lib/api/files.service";
 import { FoldersService } from "@/lib/api/folders.service";
 import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/Button";

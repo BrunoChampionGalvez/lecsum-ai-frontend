@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { AuthService } from '../../lib/api/auth.service';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -13,22 +12,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
-  const [isValidatingToken, setIsValidatingToken] = useState(true);
-  const [isTokenValid, setIsTokenValid] = useState(false);
   const [redirectedToLogin, setRedirectedToLogin] = useState(false);
 
   // This ensures we only run client-side code after hydration
   useEffect(() => {
     setIsClient(true);
   }, []);
-
-  // Track if we have a user to avoid unnecessary validation
-  useEffect(() => {
-    if (user) {
-      setIsTokenValid(true);
-      setIsValidatingToken(false);
-    }
-  }, [user]);
 
   // Handle authentication check
   useEffect(() => {
@@ -39,8 +28,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       // If we have a user, assume token is valid initially
       // This prevents immediate redirects after login
       if (user) {
-        setIsValidatingToken(false);
-        setIsTokenValid(true);
         return;
       }
       

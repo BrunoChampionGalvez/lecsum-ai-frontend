@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { Suspense } from 'react';
 import { FlashcardsList } from '../../components/flashcards/FlashcardsList';
 
 export const metadata: Metadata = {
@@ -7,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function FlashcardsPage() {
-  return <FlashcardsList />;
+  return (
+    <Suspense fallback={<div>Loading flashcards...</div>}>
+      <FlashcardsList />
+    </Suspense>
+  );
 }

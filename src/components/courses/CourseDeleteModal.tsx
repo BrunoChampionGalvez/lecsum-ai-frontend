@@ -85,7 +85,7 @@ export const CourseDeleteModal: React.FC<CourseDeleteModalProps> = ({
     };
     
     fetchData();
-  }, [isOpen, courseId]);
+  }, [isOpen, courseId, quizzes.length, decks.length, files.length, folders.length]);
 
   // Item deletion handlers
   const handleConfirmDelete = (id: string, type: 'quiz' | 'flashcardDeck' | 'file' | 'folder', name: string) => {
@@ -190,7 +190,6 @@ export const CourseDeleteModal: React.FC<CourseDeleteModalProps> = ({
             console.log('Now deleting folders in proper order...');
             
             // Sort folders - we need to delete child folders before parent folders
-            const folderMap = new Map(folders.map(f => [f.id, f]));
             
             // Group folders by level (children first)
             const childFolders = folders.filter(f => f.parentId !== null);

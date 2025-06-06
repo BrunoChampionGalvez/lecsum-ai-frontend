@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { AuthService } from '../../lib/api/auth.service';
 
 interface PublicRouteProps {
   children: React.ReactNode;

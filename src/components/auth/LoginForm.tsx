@@ -5,6 +5,7 @@ import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { LoginCredentials } from '../../lib/api/auth.service';
 import { useAuth } from '../../lib/auth/AuthContext';
+import { AxiosError } from 'axios';
 
 const validationSchema = Yup.object({
   email: Yup.string()
@@ -31,8 +32,15 @@ export const LoginForm: React.FC = () => {
         // Use the login function from AuthContext which handles navigation and state
         await login(values.email, values.password);
         // No need to navigate here as AuthContext's login will handle it
-      } catch (err: any) {
-        setError(err.response?.data?.message || 'Failed to login. Please check your credentials.');
+      } catch (error: unknown) {
+        let errorMessage = 'Failed to login. Please check your credentials.';
+        if (error instanceof AxiosError && error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        setError(errorMessage);
+        console.error('Login failed:', error);
       } finally {
         setSubmitting(false);
       }

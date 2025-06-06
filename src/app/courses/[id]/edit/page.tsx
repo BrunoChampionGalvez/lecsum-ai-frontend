@@ -10,6 +10,7 @@ import { Button } from '../../../../components/ui/Button';
 import { ProtectedRoute } from '../../../../components/auth/ProtectedRoute';
 import { CourseForm } from '../../../../components/courses/CourseForm';
 import { Course, CoursesService, UpdateCourseData } from '../../../../lib/api/courses.service';
+import { AxiosError } from 'axios';
 
 export default function EditCoursePage() {
   const router = useRouter();
@@ -28,9 +29,15 @@ export default function EditCoursePage() {
         const fetchedCourse = await CoursesService.getCourseById(id);
         setCourse(fetchedCourse);
         document.title = `Edit ${fetchedCourse.name} | LecSum AI`;
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error fetching course:', err);
-        setError(err.response?.data?.message || 'Failed to load course');
+        if (err instanceof AxiosError && err.response?.data?.message) {
+          setError(err.response.data.message);
+        } else if (err instanceof Error) {
+          setError(err.message || 'Failed to load course');
+        } else {
+          setError('Failed to load course');
+        }
       } finally {
         setLoading(false);
       }
@@ -46,9 +53,15 @@ export default function EditCoursePage() {
       toast.success('Course updated successfully!');
       router.push(`/courses/${id}`);
       router.refresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error updating course:', err);
-      toast.error(err.response?.data?.message || 'Failed to update course');
+      if (err instanceof AxiosError && err.response?.data?.message) {
+        toast.error(err.response.data.message);
+      } else if (err instanceof Error) {
+        toast.error(err.message || 'Failed to update course');
+      } else {
+        toast.error('Failed to update course');
+      }
       throw err; // Let the form component handle the error
     } finally {
       setIsSubmitting(false);

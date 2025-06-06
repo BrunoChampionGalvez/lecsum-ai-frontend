@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
@@ -9,8 +9,8 @@ import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
 import { ProtectedRoute } from '../../../components/auth/ProtectedRoute';
-import { FileUploader } from '../../../components/files/FileUploader';
-import { FolderTree, FolderTreeSkeleton } from '@/components/files/FolderTree';
+
+import { FolderTreeSkeleton } from '@/components/files/FolderTree';
 import { CourseDeleteModal } from '../../../components/courses/CourseDeleteModal';
 import { FlashcardGenerationModal } from '../../../components/flashcards/FlashcardGenerationModal';
 import { QuizzesGenerationModal } from '../../../components/quizzes/QuizzesGenerationModal';
@@ -19,6 +19,7 @@ import { CoursesService } from '@/lib/api/courses.service';
 import { Course, UpdateCourseData } from '../../../lib/api/courses.service';
 import { CourseFiles } from '../../../components/courses/CourseFiles';
 import { useChatContext } from '@/lib/chat/ChatContext';
+import { AxiosError } from 'axios';
 import { MentionedMaterial } from '@/lib/api/chat.service';
 import { FilesService } from '@/lib/api';
 import { FoldersService } from '@/lib/api/folders.service';
@@ -61,9 +62,15 @@ export default function CourseDetailPage() {
         setEditedName(fetchedCourse.name);
         setEditedDescription(fetchedCourse.description || '');
         document.title = `${fetchedCourse.name} | LecSum AI`;
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error fetching course:', err);
-        setError(err.response?.data?.message || 'Failed to load course details');
+        if (err instanceof AxiosError && err.response?.data?.message) {
+          setError(err.response.data.message);
+        } else if (err instanceof Error) {
+          setError(err.message || 'Failed to load course details');
+        } else {
+          setError('Failed to load course details');
+        }
         document.title = 'Course Not Found | LecSum AI';
       } finally {
         setLoading(false);
@@ -84,9 +91,15 @@ export default function CourseDetailPage() {
       toast.success('Course deleted successfully');
       router.push('/courses');
       router.refresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error deleting course:', err);
-      toast.error(err.response?.data?.message || 'Failed to delete course');
+      if (err instanceof AxiosError && err.response?.data?.message) {
+        toast.error(err.response.data.message);
+      } else if (err instanceof Error) {
+        toast.error(err.message || 'Failed to delete course');
+      } else {
+        toast.error('Failed to delete course');
+      }
     } finally {
       setIsDeleting(false);
       setIsDeleteModalOpen(false);
@@ -127,15 +140,21 @@ export default function CourseDetailPage() {
       
       setIsEditing(false);
       toast.success('Course updated successfully');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error updating course:', err);
-      toast.error(err.response?.data?.message || 'Failed to update course');
+      if (err instanceof AxiosError && err.response?.data?.message) {
+        toast.error(err.response.data.message);
+      } else if (err instanceof Error) {
+        toast.error(err.message || 'Failed to update course');
+      } else {
+        toast.error('Failed to update course');
+      }
     } finally {
       setIsSaving(false);
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setFolderTreeReady(false);
     try {
@@ -167,17 +186,23 @@ export default function CourseDetailPage() {
       setTimeout(() => {
         setFolderTreeReady(true);
       }, 500);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error fetching data:', error);
-      toast.error('Failed to load files and folders');
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else if (error instanceof Error) {
+        toast.error(error.message || 'Failed to load files and folders');
+      } else {
+        toast.error('Failed to load files and folders');
+      }
       setLoading(false);
       setFolderTreeReady(true); // Mark as ready even on error to avoid perpetual loading state
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     fetchData();
-  }, [id]);
+  }, [fetchData]);
 
   // Function to show the AI generation modal
   const showGenerateFlashcardsWithAiModal = () => {

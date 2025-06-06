@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 // Server component that handles the route params
-export default async function EditFlashcardsPage({ params }: { params: { deckId: string } }) {
+export default async function EditFlashcardsPage({ params }: { params: Promise<{ deckId: string }> }) {
   const awaitedParams = await params;
   return <FlashcardDeckEditor deckId={awaitedParams.deckId} />;
 }

@@ -1,5 +1,15 @@
 "use client";
 import React, { useState } from 'react';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -60,7 +70,8 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({
       });
 
       onGenerated();
-    } catch (err: any) {
+    } catch (errRaw) {
+      const err = errRaw as ApiError;
       setError(err.response?.data?.message || 'Failed to generate quiz. Please try again.');
     } finally {
       setIsGenerating(false);

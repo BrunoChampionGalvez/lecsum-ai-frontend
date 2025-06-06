@@ -1,6 +1,16 @@
 "use client";
 
 import React from 'react';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
 import { toast } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import { Card } from '../ui/Card';
@@ -22,7 +32,6 @@ export function NewDeckForm({ disabled = false }: { disabled?: boolean }) {
   // Get subscription limits
   const { 
     canCreateFlashcards, 
-    remaining,
     isActive,
     refresh: refreshSubscriptionLimits 
   } = useSubscriptionLimits();
@@ -71,7 +80,8 @@ export function NewDeckForm({ disabled = false }: { disabled?: boolean }) {
       
       // Refresh subscription limits after successful creation
       refreshSubscriptionLimits();
-    } catch (err: any) {
+    } catch (errRaw) {
+      const err = errRaw as ApiError;
       console.error('Error creating deck:', err);
       toast.error(err.response?.data?.message || 'Failed to create deck');
     } finally {

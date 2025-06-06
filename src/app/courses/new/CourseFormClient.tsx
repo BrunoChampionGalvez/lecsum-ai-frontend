@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { CourseForm } from '../../../components/courses/CourseForm';
 import { toast } from 'react-hot-toast';
 import { CoursesService, CreateCourseData } from '../../../lib/api/courses.service';
+import { AxiosError } from 'axios';
 
 export default function CourseFormClient() {
   const router = useRouter();
@@ -25,9 +26,15 @@ export default function CourseFormClient() {
       // Redirect to courses page on success
       router.push('/courses');
       router.refresh(); // Refresh to update the courses list
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error creating course:', err);
-      setError(err.response?.data?.message || 'Failed to create course. Please try again.');
+      if (err instanceof AxiosError && err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else if (err instanceof Error) {
+        setError(err.message || 'Failed to create course. Please try again.');
+      } else {
+        setError('Failed to create course. Please try again.');
+      }
       toast.error('Failed to create course');
     } finally {
       setIsSubmitting(false);

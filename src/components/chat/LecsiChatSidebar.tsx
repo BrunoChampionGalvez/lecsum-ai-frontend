@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState, useRef, useEffect, KeyboardEvent, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { ChatInputForm } from "./ChatInputForm";
 import { ChatMessage } from "./ChatMessage";
 import { useAuth } from "../../lib/auth/AuthContext";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "../ui/Button";
 import { apiClient } from "../../lib/api/client";
-import { MentionedMaterial } from "../../lib/api/chat.service";
+import { MentionedMaterial, MessageCitation } from "../../lib/api/chat.service";
 import { useSubscriptionLimits } from "../../hooks/useSubscriptionLimits";
 import { toast } from "react-hot-toast";
 import { useChatContext } from "../../lib/chat/ChatContext";
@@ -20,42 +20,42 @@ interface LecsiMessage {
   content: string;
   role: "user" | "ai";
   createdAt: string;
-  citations?: any[];
+  citations?: MessageCitation[]; // Changed from unknown[] to use the specific type
   selectedMaterials?: MentionedMaterial[];
 }
 
 // Study material types
 interface BaseMaterial {
-  id: any;
-  name: any;
+  id: string;
+  name: string;
   path?: string[];
 }
 
 interface Course extends BaseMaterial {
   type: "course";
-  courseId?: any; // Adding courseId to Course interface
+  courseId?: string; // Adding courseId to Course interface
 }
 
 interface Folder extends BaseMaterial {
   type: "folder";
-  parentId: any;
-  courseId: any;
+  parentId: string | null;
+  courseId: string;
 }
 
 interface File extends BaseMaterial {
   type: "file";
-  parentId: any;
-  courseId: any;
+  parentId: string | null;
+  courseId: string;
 }
 
 interface Quiz extends BaseMaterial {
   type: "quiz";
-  courseId: any;
+  courseId: string;
 }
 
 interface Deck extends BaseMaterial {
   type: "flashcardDeck";
-  courseId: any;
+  courseId: string;
 }
 
 type StudyMaterial = Course | Folder | File | Quiz | Deck;
@@ -73,6 +73,7 @@ interface ChatSession {
 }
 
 import { MessageRole } from "../../lib/api/chat.service";
+import { AxiosError } from 'axios'; // Added for error typing
 
 export const LecsiChatSidebar: React.FC = () => {
   const [hover, setHover] = useState(false);
@@ -84,7 +85,7 @@ export const LecsiChatSidebar: React.FC = () => {
     setSelectedMaterials: setContextMaterials,
     createNewSession,
     setCreateNewSession,
-    hasActiveSession,
+    // hasActiveSession, // Removed as unused
     setHasActiveSession
   } = useChatContext();
   const [messages, setMessages] = useState<LecsiMessage[]>([]);
@@ -95,13 +96,12 @@ export const LecsiChatSidebar: React.FC = () => {
   const { 
     canUseLiteMessage, 
     canUseThinkMessage, 
-    remaining,
-    isActive,
-    refresh: refreshSubscriptionLimits 
+    // remaining, // Removed as unused
+    isActive
+    // refresh: refreshSubscriptionLimits // Removed as unused
   } = useSubscriptionLimits();
   
-  // Check if current mode is limited
-  const currentModeIsLimited = chatMode === 'lite' ? !canUseLiteMessage : !canUseThinkMessage;
+  // const currentModeIsLimited = chatMode === 'lite' ? !canUseLiteMessage : !canUseThinkMessage; // Removed as unused
   const [showMentionSearch, setShowMentionSearch] = useState(false);
   const [mentionSearchQuery, setMentionSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<StudyMaterial[]>([]);
@@ -123,6 +123,56 @@ export const LecsiChatSidebar: React.FC = () => {
 
   // Track whether we're currently loading sessions to prevent duplicate requests
   const isLoadingSessionsRef = useRef(false);
+
+  const createNewChatSession = useCallback(async (initialMaterials?: MentionedMaterial[]) => {
+    if (!user) {
+      setErrorMessage("User not authenticated. Cannot create a new chat session.");
+      return null;
+    }
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const payload: { name?: string; contextFileIds?: string[] } = {};
+      const materialsToUse = initialMaterials || [];
+
+      if (materialsToUse.length > 0) {
+        payload.name = `Chat with ${materialsToUse.map(m => m.displayName).join(', ')}`;
+        payload.contextFileIds = materialsToUse.map(m => m.id);
+      } else {
+        payload.name = "New Chat"; // Default name
+      }
+
+      const response = await apiClient.post('/chat/sessions', payload);
+      const newSession = response as ChatSession;
+
+      setSessionId(newSession.id);
+      setMessages([]);
+      setChatSessions(prev => [newSession, ...prev.filter(s => s.id !== newSession.id)]);
+      setSelectedMaterials(materialsToUse);
+      localStorage.setItem('chatSessionId', newSession.id);
+      setHasActiveSession(true);
+      return newSession.id;
+    } catch (err) {
+      const error = err as { response?: { data?: { message?: string } }, message?: string };
+      console.error('Failed to create new chat session:', error);
+      const apiErrorMessage = error.response?.data?.message || error.message || 'Unknown error';
+      setErrorMessage(`Failed to create new chat session: ${apiErrorMessage}`);
+      setHasActiveSession(false);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [
+    user, 
+    setSessionId, 
+    setMessages, 
+    setChatSessions, 
+    setErrorMessage, 
+    setIsLoading, 
+    setSelectedMaterials,
+    setHasActiveSession
+    // apiClient is stable and not listed as a dependency
+  ]);
   // Track when sessions were last loaded to prevent frequent reloads
   const lastSessionLoadTimeRef = useRef(0);
 
@@ -368,7 +418,7 @@ export const LecsiChatSidebar: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [user, authLoading, open, createNewSession, contextMaterials, setHasActiveSession]);
+  }, [user, authLoading, open, createNewSession, contextMaterials, setHasActiveSession, createNewChatSession, sessionId, setContextMaterials, setCreateNewSession]);
 
   
   // Load existing messages for a session with enhanced error handling
@@ -385,7 +435,8 @@ export const LecsiChatSidebar: React.FC = () => {
       try {
         // The apiClient will automatically add the JWT token to the request
         await apiClient.get(`/chat/sessions/${sessionId}`);
-      } catch (sessionError: any) {
+      } catch (e: unknown) {
+        const sessionError = e as AxiosError<{ message?: string }>; // Assuming AxiosError or similar structure
         // If the session doesn't exist, clean up and return false
         if (sessionError.response && sessionError.response.status === 404) {
           console.log(`Session ${sessionId} not found, removing from localStorage`);
@@ -412,15 +463,15 @@ export const LecsiChatSidebar: React.FC = () => {
         const response = await apiClient.get(`/chat/sessions/${sessionId}/messages`);
         
         // With apiClient, the response itself is the data returned by the server
-        const data = response as any[];
+        const data = response as { id: string; content: string; role: string; createdAt?: string; citations?: MessageCitation[] }[];
         console.log('Loaded messages:', data);
         
         if (data && Array.isArray(data)) {
           // Transform messages to match our format
-          const formattedMessages: LecsiMessage[] = data.map((msg: any) => ({
+          const formattedMessages: LecsiMessage[] = data.map((msg: { id: string; content: string; role: string; createdAt?: string; citations?: MessageCitation[] }) => ({
             id: msg.id,
             content: msg.content,
-            role: msg.role.toLowerCase(),
+            role: msg.role.toLowerCase() as "user" | "ai", // Assuming backend sends 'user' or 'ai'
             createdAt: msg.createdAt || new Date().toISOString(),
             citations: msg.citations || [],
           }));
@@ -432,7 +483,8 @@ export const LecsiChatSidebar: React.FC = () => {
         // If we got a response but no valid data, just show an empty chat
         setMessages([]);
         return true; // Session exists but might be empty
-      } catch (messagesError: any) {
+      } catch (e: unknown) {
+        const messagesError = e as AxiosError<{ message?: string }>; // Assuming AxiosError or similar structure
         // If we couldn't load messages but the session exists
         console.error('Error loading messages for existing session:', messagesError);
         
@@ -447,7 +499,8 @@ export const LecsiChatSidebar: React.FC = () => {
         setMessages([]);
         return true;
       }
-    } catch (error: any) {
+    } catch (e: unknown) {
+      const error = e as { message?: string };
       // This catches any other errors in the overall process
       console.error('Unexpected error in loadExistingMessages:', error);
       setErrorMessage(`Error loading chat session: ${error.message || 'Unknown error'}`);
@@ -455,101 +508,13 @@ export const LecsiChatSidebar: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-  
-  // Create a new chat session when user explicitly requests one
-  const createNewChatSession = async () => {
-    try {
-      setIsLoading(true);
-      
-      // Use the configured apiClient which automatically handles authentication
-      console.log('Creating new chat session...');
-      
-      // Create with a helpful name based on current date/time
-      const timestamp = new Date().toLocaleString();
-      const sessionName = `Chat ${timestamp}`;
-      
-      // Add retry logic for better reliability
-      let retryCount = 0;
-      let response;
-      const maxRetries = 2;
-      
-      while (retryCount <= maxRetries) {
-        try {
-          // The apiClient will automatically add the JWT token to the request
-          response = await apiClient.post('/chat/sessions', {
-            fileIds: [], // Can pass initial file context if needed
-            name: sessionName, // Provide a more helpful name than the default
-          });
-          
-          // If successful, break out of retry loop
-          break;
-        } catch (err: any) {
-          retryCount++;
-          console.log(`Attempt ${retryCount} failed:`, err.message);
-          
-          if (retryCount > maxRetries) {
-            throw err; // Rethrow if we've exhausted retries
-          }
-          
-          // Wait a bit before retrying
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-      
-      if (!response) {
-        throw new Error('Failed to create session after multiple attempts');
-      }
-      
-      // The response from apiClient is different from direct fetch
-      console.log('Response received:', response);
-      
-      // In apiClient/axios, the response itself is the data returned by the server
-      const sessionData = response as ChatSession;
-      console.log('Session data:', sessionData);
-      
-      // Check if we have a valid response with an ID
-      if (!sessionData || !sessionData.id) {
-        console.error('Invalid session data response:', sessionData);
-        throw new Error('Failed to get a valid session ID from the API');
-      }
-      
-      const newSessionId = sessionData.id;
-      
-      // Store the session ID for future use
-      localStorage.setItem('chatSessionId', newSessionId);
-      setSessionId(newSessionId);
-      console.log("Created new chat session with ID:", newSessionId);
-      
-      // Clear messages for new session
-      setMessages([]);
-      
-      // Refresh sessions list to show the new session
-      loadChatSessions();
-      
-      return sessionData; // Return the session data for potential use by callers
-    } catch (error: any) {
-      console.error('Error creating chat session:', error);
-      setErrorMessage(`Failed to create chat session: ${error.message || 'Please try again.'}`);
-      throw error; // Rethrow so caller can handle it
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // Scroll to bottom when a new message arrives
+  };  // Scroll to bottom as the last message content updates (during streaming)
+  const lastMessageContent = messages[messages.length - 1]?.content;
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages.length]);
-
-  // Scroll to bottom as the last message content updates (during streaming)
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages[messages.length - 1]?.content]);
+  }, [lastMessageContent]);
 
   // Auto-clear error messages after 5 seconds
   useEffect(() => {
@@ -611,7 +576,7 @@ export const LecsiChatSidebar: React.FC = () => {
       
       try {
         console.log('Fetching courses...');
-        const courses = await apiClient.get<any[]>('/courses');
+        const courses = await apiClient.get<{ id: string; name: string; }[]>('/courses');
         coursesRes = { data: courses };
         console.log('Courses fetched successfully:', courses.length);
       } catch (error) {
@@ -621,7 +586,7 @@ export const LecsiChatSidebar: React.FC = () => {
       
       try {
         console.log('Fetching folders...');
-        const folders = await apiClient.get<any[]>('/folders');
+        const folders = await apiClient.get<{ id: string; name: string; parentId?: string; courseId: string; }[]>('/folders');
         foldersRes = { data: folders };
         console.log('Folders fetched successfully:', folders.length);
       } catch (error) {
@@ -631,7 +596,7 @@ export const LecsiChatSidebar: React.FC = () => {
       
       try {
         console.log('Fetching files...');
-        const files = await apiClient.get<any[]>('/files');
+        const files = await apiClient.get<{ id: string; name: string; folderId?: string; courseId: string; }[]>('/files');
         filesRes = { data: files };
         console.log('Files fetched successfully:', files.length);
       } catch (error) {
@@ -641,7 +606,7 @@ export const LecsiChatSidebar: React.FC = () => {
       
       try {
         console.log('Fetching quizzes...');
-        const quizzes = await apiClient.get<any[]>('/quizzes');
+        const quizzes = await apiClient.get<{ id: string; title: string; courseId: string; }[]>('/quizzes');
         quizzesRes = { data: quizzes };
         console.log('Quizzes fetched successfully:', quizzes.length);
       } catch (error) {
@@ -651,7 +616,7 @@ export const LecsiChatSidebar: React.FC = () => {
       
       try {
         console.log('Fetching flashcard decks...');
-        const decks = await apiClient.get<any[]>('/decks');
+        const decks = await apiClient.get<{ id: string; name: string; courseId: string; }[]>('/decks');
         decksRes = { data: decks };
         console.log('Flashcard decks fetched successfully:', decks.length);
       } catch (error) {
@@ -663,7 +628,7 @@ export const LecsiChatSidebar: React.FC = () => {
       let results: StudyMaterial[] = [];
       
       // Process courses
-      const courses = coursesRes.data.map((course: any) => ({
+      const coursesData = coursesRes.data.map((course: { id: string; name: string; }) => ({
         id: course.id,
         name: course.name,
         type: 'course' as const,
@@ -671,27 +636,27 @@ export const LecsiChatSidebar: React.FC = () => {
       }));
       
       // Process folders
-      const folders = foldersRes.data.map((folder: any) => ({
+      const foldersData = foldersRes.data.map((folder: { id: string; name: string; parentId?: string; courseId: string; }) => ({
         id: folder.id,
         name: folder.name,
         type: 'folder' as const,
-        parentId: folder.parentId,
+        parentId: folder.parentId === undefined ? null : folder.parentId,
         courseId: folder.courseId,
         path: [] // Initialize path property
       }));
       
       // Process files
-      const files = filesRes.data.map((file: any) => ({
+      const filesData = filesRes.data.map((file: { id: string; name: string; folderId?: string; courseId: string; }) => ({
         id: file.id,
         name: file.name,
         type: 'file' as const,
-        parentId: file.folderId,
+        parentId: file.folderId === undefined ? null : file.folderId,
         courseId: file.courseId,
         path: [] // Initialize path property
       }));
       
       // Process quizzes
-      const quizzes = quizzesRes.data.map((quiz: any) => ({
+      const quizzesData = quizzesRes.data.map((quiz: { id: string; title: string; courseId: string; }) => ({
         id: quiz.id,
         name: quiz.title,
         type: 'quiz' as const,
@@ -700,29 +665,35 @@ export const LecsiChatSidebar: React.FC = () => {
       }));
       
       // Process flashcard decks
-      const decks = decksRes.data.map((deck: any) => ({
+      const decksData = decksRes.data.map((deck: { id: string; name: string; courseId: string; }) => ({
         id: deck.id,
-        name: deck.name, // Use name property from the backend, not title
+        name: deck.name,
         type: "flashcardDeck" as const,
         courseId: deck.courseId,
-        path: [] // Initialize path property
+        path: [] 
       }));
-      
+
       // Build complete paths for all materials
-      const allMaterials = [...courses, ...folders, ...files, ...quizzes, ...decks];
+      const allMaterials = [...coursesData, ...foldersData, ...filesData, ...quizzesData, ...decksData];
       
       // Loop through all materials and build paths
-      const buildPath = (material: any): string[] => {
-        const path: string[] = material.path; // Use existing path property
+      const buildPath = (material: StudyMaterial): string[] => {
+        // Ensure material.path is initialized if not present, or use it if it is.
+        const path: string[] = Array.isArray(material.path) ? [...material.path] : []; 
         
-        // Course materials don't have parents
+        // Course materials might already have their full path or just their name.
+        // If it's just the name, it's handled by the 'Add material name' section later.
         if (material.type === 'course') {
-          return path;
+          // If path is already populated (e.g. [courseName]), return it.
+          // Otherwise, it will be constructed later.
+          if (path.length > 0 && path[0] === material.name.replace(/ /g, '_')) return path;
+          // If path is empty, it means it's a course and its name will be added as the first element.
+          // This logic is a bit redundant with later parts but ensures courses are handled.
         }
         
         // Find course name
         if (material.courseId && material.type !== 'course') {
-          const course = courses.find((c: any) => c.id === material.courseId);
+          const course = coursesData.find((c: { id: string; name: string; }) => c.id === material.courseId);
           if (course) {
             path.push(course.name.replace(/ /g, '_'));
           }
@@ -732,7 +703,7 @@ export const LecsiChatSidebar: React.FC = () => {
         if (material.type === 'folder' || material.type === 'file') {
           if (material.parentId) {
             const buildFolderPath = (folderId: string): string[] => {
-              const folder = folders.find((f: any) => f.id === folderId);
+              const folder = foldersData.find((f: { id: string; name: string; parentId: string | null; courseId: string; }) => f.id === folderId);
               if (!folder) return [];
               
               if (folder.parentId) {
@@ -762,14 +733,14 @@ export const LecsiChatSidebar: React.FC = () => {
       };
       
       // Assign paths to all materials
-      allMaterials.forEach((material: any) => {
+      allMaterials.forEach((material: StudyMaterial) => {
         material.path = buildPath(material);
       });
       
       // Filter based on search criteria
       if (parentPath.length > 0) {
         // Hierarchical search (course/folder/etc)
-        results = allMaterials.filter((material: any) => {
+        results = allMaterials.filter((material: StudyMaterial) => {
           if (!material.path || material.path.length < parentPath.length) return false;
           
           // Check if parent path matches
@@ -789,7 +760,7 @@ export const LecsiChatSidebar: React.FC = () => {
         });
       } else {
         // Simple search across all materials
-        results = allMaterials.filter((material: any) => {
+        results = allMaterials.filter((material: StudyMaterial) => {
           // Skip materials with undefined names
           if (!material.name) {
             console.log(`Skipping material with no name:`, material);
@@ -819,21 +790,22 @@ export const LecsiChatSidebar: React.FC = () => {
       });
       
       setSearchResults(results.slice(0, 10)); // Limit to 10 results
-    } catch (error: any) {
-      console.error('Error searching study materials:', error);
+    } catch (error) {
+      const axiosError = error as AxiosError<unknown>;
+      console.error('Error searching study materials:', axiosError);
       // More detailed error logging
-      if (error.response) {
+      if (axiosError.response) {
         // The request was made and the server responded with a status code
         // that falls out of the range of 2xx
-        console.error('Error response data:', error.response.data);
-        console.error('Error response status:', error.response.status);
-        console.error('Error response headers:', error.response.headers);
-      } else if (error.request) {
+        console.error('Error response data:', axiosError.response.data);
+        console.error('Error response status:', axiosError.response.status);
+        console.error('Error response headers:', axiosError.response.headers);
+      } else if (axiosError.request) {
         // The request was made but no response was received
-        console.error('Error request:', error.request);
+        console.error('Error request:', axiosError.request);
       } else {
         // Something happened in setting up the request that triggered an Error
-        console.error('Error message:', error.message);
+        console.error('Error message:', axiosError.message);
       }
       
       setSearchResults([]);
@@ -982,8 +954,6 @@ export const LecsiChatSidebar: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // Store original message for UI display
-      const displayMessage = message;
       
       // Clean message content for backend - remove @ mentions of selected materials
       let cleanedMessage = message;
@@ -1157,10 +1127,10 @@ export const LecsiChatSidebar: React.FC = () => {
                 let delta = '';
                 for (const line of lines) {
                   if (!line.startsWith('data:')) continue;
-                  let raw = line.substring(5).trim();
+                  const raw = line.substring(5).trim();
                   if (!raw || raw === '{}') continue;
                   try {
-                    const parsed: any = JSON.parse(raw);
+                    const parsed = JSON.parse(raw) as { text?: string } | string;
                     if (parsed && typeof parsed === 'object' && 'text' in parsed) {
                       const text = parsed.text;
                       if (text) delta += text;
@@ -1261,9 +1231,18 @@ export const LecsiChatSidebar: React.FC = () => {
   const handleCreateNewChat = async () => {
     try {
       setIsLoading(true);
-      const newSession = await createNewChatSession();
-      setSessionId(newSession.id);
-      localStorage.setItem('chatSessionId', newSession.id);
+      const newSessionId = await createNewChatSession(); // This returns string | null
+      if (newSessionId) {
+        setSessionId(newSessionId);
+        localStorage.setItem('chatSessionId', newSessionId);
+      } else {
+        // Handle the case where session creation failed and newSessionId is null
+        console.error('Failed to create new chat session in handleCreateNewChat as createNewChatSession returned null.');
+        // setErrorMessage is already in the catch block, but we might want a specific one here
+        // For now, the existing catch block will handle the user-facing error message.
+        // We might want to throw an error here to be caught by the catch block or return early.
+        return; // Exit if session creation failed
+      }
       setMessages([]);
       setShowSessionsHistory(false);
     } catch (error) {
@@ -1599,7 +1578,7 @@ export const LecsiChatSidebar: React.FC = () => {
                     >
                       <div className="font-semibold mb-1 text-[var(--primary)]">How Lecsi uses your question and materials:</div>
                       <div className="mb-2">
-                        Generic questions that <span className="font-semibold">don't mention specific topics</span> will make Lecsi only read up to <span className="font-semibold">4</span> of the attached study materials. If the question is generic and no study materials are added as context to the conversation, Lecsi could have issues understanding your question. It is <span className="font-semibold">always recommended</span> to attach study materials to the conversation as context, via the @ functionality.
+                        Generic questions that <span className="font-semibold">don&apos;t mention specific topics</span> will make Lecsi only read up to <span className="font-semibold">4</span> of the attached study materials. If the question is generic and no study materials are added as context to the conversation, Lecsi could have issues understanding your question. It is <span className="font-semibold">always recommended</span> to attach study materials to the conversation as context, via the @ functionality.
                       </div>
                       <div className="mb-1 font-semibold">Examples of generic questions or queries:</div>
                       <ul className="mb-2 list-decimal list-inside text-gray-700">
@@ -1608,7 +1587,7 @@ export const LecsiChatSidebar: React.FC = () => {
                       </ul>
                       <div className="mb-1 font-semibold">Examples of specific questions or queries:</div>
                       <ul className="list-decimal list-inside text-gray-700">
-                        <li>What is the difference between Sigmund Freud's and Carl Jung's psychoanalysis theories?</li>
+                        <li>What is the difference between Sigmund Freud&apos;s and Carl Jung&apos;s psychoanalysis theories?</li>
                         <li>How many ATP molecules does a Krebs cycle produce?</li>
                       </ul>
                       {/* Tooltip arrow */}
@@ -1679,7 +1658,7 @@ export const LecsiChatSidebar: React.FC = () => {
                 onSendMessage={handleChatMessageSubmit} 
                 isLoading={isLoading} 
                 onInputChange={handleMessageChange}
-                selectedMaterials={selectedMaterials as any}
+                selectedMaterials={selectedMaterials}
                 message={inputValue}
                 setMessage={setInputValue}
                 liteMode={chatMode === 'lite'}

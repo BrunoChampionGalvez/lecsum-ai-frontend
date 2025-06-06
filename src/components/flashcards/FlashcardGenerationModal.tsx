@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+
 // Using Modal component instead of Dialog
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { CoursesService, Course } from '../../lib/api/courses.service';
 import { FoldersService } from '../../lib/api/folders.service';
-import { FilesService, AppFile } from '../../lib/api/files.service';
+import { FilesService } from '../../lib/api/files.service';
 import { useSubscriptionLimits } from '../../hooks/useSubscriptionLimits';
 import { Folder, APIFile } from '../../lib/api/types';
 // Removing Tabs dependency as it's not used in this component
@@ -140,7 +141,7 @@ export const FlashcardGenerationModal: React.FC<FlashcardGenerationModalProps> =
         fetchCourses();
       }
     }
-  }, [isOpen, initialCourses]);
+  }, [isOpen, initialCourses, skipCourseSelection]);
 
   // Fetch courses for the first step
   const fetchCourses = async () => {
@@ -310,20 +311,11 @@ export const FlashcardGenerationModal: React.FC<FlashcardGenerationModalProps> =
   };
 
   // Handle generation settings change
-  const handleSettingsChange = (key: keyof GenerationSettings, value: any) => {
+  const handleSettingsChange = (key: keyof GenerationSettings, value: GenerationSettings[keyof GenerationSettings]) => {
     setSettings(prev => ({
       ...prev,
       [key]: value
     }));
-  };
-  
-  // Helper to convert string difficulty to enum
-  const stringToDifficulty = (value: string): DifficultyLevel => {
-    switch (value) {
-      case 'easy': return DifficultyLevel.EASY;
-      case 'hard': return DifficultyLevel.HARD;
-      default: return DifficultyLevel.MODERATE;
-    }
   };
 
   // Handle flashcard generation
@@ -365,12 +357,12 @@ export const FlashcardGenerationModal: React.FC<FlashcardGenerationModalProps> =
       
       // Call the API to generate flashcards
       // The backend API expects fileIds, not folderIds, so we need to fetch all files in the selected folders
-      let allFileIds = [...selectedItems.files];
+      const allFileIds = [...selectedItems.files];
       
       // Eliminate duplicates
       const uniqueFileIds = [...new Set(allFileIds)];
       
-      const flashcards = await FlashcardsService.generateFlashcards({
+      await FlashcardsService.generateFlashcards({
         fileIds: uniqueFileIds,
         courseId: selectedItems.courseId || '',
         difficulty: settings.difficulty,

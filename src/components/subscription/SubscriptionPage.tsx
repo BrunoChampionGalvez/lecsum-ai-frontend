@@ -1,12 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
 import { SubscriptionPlanTab } from './SubscriptionPlanTab';
 import { UsageTab } from './UsageTab';
 import { ManageSubscriptionTab } from './ManageSubscriptionTab';
 import subscriptionApi, { SubscriptionDetails, SubscriptionPlan, SubscriptionWithUsage } from '@/api/subscription';
 import { Card } from '../ui/Card';
-import { AlertCircle, AlertTriangle, Clock } from 'lucide-react';
+import { AlertCircle, AlertTriangle } from 'lucide-react';
 
 export const SubscriptionPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('plan');
@@ -17,68 +27,82 @@ export const SubscriptionPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isActive, setIsActive] = useState<boolean>(false);
   const [isExpired, setIsExpired] = useState<boolean>(false);
-  
-  const checkSubscriptionStatus = (subscription: SubscriptionDetails) => {
-    setIsActive(subscription.plan.isActive);
-    
-    // Check if subscription is expired
+
+  const checkSubscriptionStatus = useCallback((subscription: SubscriptionDetails | null) => {
+    if (!subscription || !subscription.plan) {
+      setIsActive(false);
+      setIsExpired(true); // No plan means effectively expired/inactive
+      if (activeTab === 'usage') setActiveTab('manage');
+      return;
+    }
+
     const endDate = new Date(subscription.plan.endDate);
     const now = new Date();
-    setIsExpired(endDate < now);
-    
-    // If subscription is inactive or expired, automatically switch to manage tab
-    if ((!subscription.plan.isActive || endDate < now) && activeTab === 'usage') {
+    const currentIsActive = subscription.plan.isActive && endDate > now;
+    const currentIsExpired = !currentIsActive;
+
+    setIsActive(currentIsActive);
+    setIsExpired(currentIsExpired);
+
+    if (currentIsExpired && activeTab === 'usage') {
       setActiveTab('manage');
     }
-  };
+  }, [activeTab, setActiveTab, setIsActive, setIsExpired]);
 
-  const fetchSubscriptionData = async () => {
+  const fetchSubscriptionData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      setIsLoading(true);
-      setError(null); // Clear previous errors
-      
-      // Fetch available plans first as they don't require authentication
+      // Fetch available plans first
       try {
         const plans = await subscriptionApi.getAvailablePlans();
-        setAvailablePlans(plans);
-        console.log('plans', plans);
-        
+        setAvailablePlans(plans || []);
       } catch (planError) {
         console.error('Error fetching subscription plans:', planError);
+        // Non-critical, proceed with other fetches
       }
-      
+
       // Try to fetch authenticated data
       try {
-        const subscription = await subscriptionApi.getUserSubscription();
-        setSubscriptionData(subscription);
+        const sub = await subscriptionApi.getUserSubscription();
+        setSubscriptionData(sub);
+        checkSubscriptionStatus(sub);
 
-        checkSubscriptionStatus(subscription);
-
-        console.log('subscription', subscription);
-        
-        const usage = await subscriptionApi.getUsageDetails();
-        setUsageData(usage);
-        console.log('usage', usage);
-        
-      } catch (authError: any) {
-        // Handle auth errors separately
-        if (authError?.response?.status === 401) {
-          setError('You need to be logged in to view your subscription details');
+        if (sub && sub.plan && sub.plan.isActive) { // Only fetch usage if active
+            const usage = await subscriptionApi.getUsageDetails();
+            setUsageData(usage);
         } else {
-          setError('Failed to load your subscription details');
+            setUsageData(null); // Clear usage data if not active
+        }
+
+      } catch (authErrorRaw) {
+        const authError = authErrorRaw as ApiError;
+        if (authError?.response?.status === 401 || authError?.response?.status === 404) {
+          // 404 can mean no subscription, 401 means not logged in
+          setError('No active subscription found or session expired. Please log in.');
+          setSubscriptionData(null);
+          setUsageData(null);
+          checkSubscriptionStatus(null); // Update status based on no subscription
+        } else {
+          setError('Failed to load your subscription details.');
+          console.error('Error fetching subscription details:', authError);
         }
       }
-    } catch (error) {
-      console.error('Error in subscription page:', error);
+    } catch (generalError) {
+      console.error('Error in subscription page:', generalError);
       setError('Something went wrong loading subscription information');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [checkSubscriptionStatus, setIsLoading, setError, setAvailablePlans, setSubscriptionData, setUsageData]);
 
   useEffect(() => {
     fetchSubscriptionData();
-  }, []);
+  }, [fetchSubscriptionData]);
+
+  // The rest of the component (return statement) starts here
+  // This replacement chunk only defines the initial state and hooks
+
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-180px)]">
@@ -166,7 +190,6 @@ export const SubscriptionPage: React.FC = () => {
                 <SubscriptionPlanTab 
                   subscription={subscriptionData} 
                   availablePlans={availablePlans}
-                  onManageClick={!isActive || isExpired ? () => setActiveTab('manage') : undefined}
                 />
               )}
               {activeTab === 'usage' && (

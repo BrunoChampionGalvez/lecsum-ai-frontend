@@ -1,6 +1,5 @@
 "use client";
 import { MainLayout } from '../../../../components/ui/MainLayout';
-import { Card } from '../../../../components/ui/Card';
 import { Button } from '../../../../components/ui/Button';
 import Link from 'next/link';
 import React from 'react';
@@ -11,14 +10,14 @@ import confetti from 'canvas-confetti';
 import ReactMarkdown from 'react-markdown';
 import { StudyFlipCard } from '../../../../components/ui/StudyFlipCard';
 
-import { DecksService } from '../../../../lib/api/decks.service';
+import { DecksService, Deck } from '../../../../lib/api/decks.service';
+import { AxiosError } from 'axios';
 
 export default function StudyFlashcardsPage({ params }: { params: Promise<{ deckId: string }> }) {
   const { deckId } = React.use(params);
   
   // Get chat context for Ask Lecsi functionality
   const { 
-    isSidebarOpen,
     setIsSidebarOpen,
     setCreateNewSession,
     hasActiveSession,
@@ -33,7 +32,7 @@ export default function StudyFlashcardsPage({ params }: { params: Promise<{ deck
   const [flipped, setFlipped] = React.useState(false);
   const [score, setScore] = React.useState<(boolean | null)[]>([]);
   const [confettiShown, setConfettiShown] = React.useState(false);
-  const [deck, setDeck] = React.useState<any>(null);
+  const [deck, setDeck] = React.useState<Deck | null>(null);
 
   const handleFlip = () => setFlipped(f => !f);
   const handleNext = () => {
@@ -91,7 +90,7 @@ Back: ${currentCard.back}
     const deckMaterial = {
       id: deck.id,
       displayName: deck.name.replace(/ /g, '_'),
-      type: 'flashcardDeck' as 'flashcardDeck', // Type assertion to fix TypeScript error
+      type: 'flashcardDeck' as const, // Type assertion to fix TypeScript error
       originalName: deck.name,
       courseId: deck.courseId
     };
@@ -157,7 +156,15 @@ Back: ${currentCard.back}
         const flashcardsData = await import('../../../../lib/api/flashcards.service').then(mod => mod.FlashcardsService.getFlashcardsByDeck(deckId));
         setFlashcards(flashcardsData);
         setScore(Array(flashcardsData.length).fill(null));
-      } catch (e) {
+      } catch (error: unknown) {
+        console.error('Error fetching deck and flashcards:', error);
+        if (error instanceof AxiosError && error.response?.data?.message) {
+          toast.error(error.response.data.message);
+        } else if (error instanceof Error) {
+          toast.error(error.message || 'Failed to load deck and flashcards');
+        } else {
+          toast.error('An unknown error occurred while loading deck and flashcards');
+        }
         setDeckName('Deck Not Found');
         setFlashcards([]);
         setDeck(null);

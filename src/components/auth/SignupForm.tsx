@@ -5,6 +5,7 @@ import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { RegisterData } from '../../lib/api/auth.service';
 import { useAuth } from '../../lib/auth/AuthContext';
+import { AxiosError } from 'axios';
 
 const validationSchema = Yup.object({
   email: Yup.string()
@@ -35,8 +36,15 @@ export const SignupForm: React.FC = () => {
         // Use the register function from AuthContext which handles navigation and state
         await register(values.email, values.password, values.firstName, values.lastName);
         // No need to navigate here as AuthContext's register will handle it
-      } catch (err: any) {
-        setError(err.response?.data?.message || 'Failed to create account. Please try again.');
+      } catch (error: unknown) {
+        let errorMessage = 'Failed to create account. Please try again.';
+        if (error instanceof AxiosError && error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        setError(errorMessage);
+        console.error('Signup failed:', error);
       } finally {
         setSubmitting(false);
       }

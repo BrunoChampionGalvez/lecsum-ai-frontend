@@ -1,16 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage as ChatMessageType, MessageRole, MentionedMaterial, ChatService } from '../../lib/api/chat.service';
-import { FilesService } from '../../lib/api/files.service';
-import { Badge } from '../ui/Badge';
+import React, { useState, useEffect } from 'react';
+import { ChatMessage as ChatMessageType, MessageRole, ChatService } from '../../lib/api/chat.service';
+import { Flashcard, FlashcardType, DifficultyLevel } from '../../lib/api/flashcards.service';
 import { Button } from '../ui/Button';
-import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
 import { apiClient } from '@/lib/api';
 
 // Import for markdown rendering
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { Flashcard } from '@/lib/api/flashcards.service';
 import type { QuizQuestion } from '@/lib/api/quizzes.service';
 import { QuizzesService } from '@/lib/api/quizzes.service';
 
@@ -36,7 +33,7 @@ interface ReferenceTag {
 
 // Flashcard component for displaying in a modal
 const FlashcardModal: React.FC<{ 
-  flashcard: any; 
+  flashcard: Flashcard | null; 
   isOpen: boolean; 
   onClose: () => void 
 }> = ({ flashcard, isOpen, onClose }) => {
@@ -109,7 +106,7 @@ const FlashcardModal: React.FC<{
 
 // Quiz question component for displaying in a modal
 const QuizQuestionModal: React.FC<{ 
-  question: any; 
+  question: QuizQuestion | null; 
   isOpen: boolean; 
   onClose: () => void 
 }> = ({ question, isOpen, onClose }) => {
@@ -127,12 +124,9 @@ const QuizQuestionModal: React.FC<{
           <div className="mb-4">
             <h3 className="text-lg font-medium mb-2">Options:</h3>
             <ul className="list-disc pl-5">
-              {question.options.map((option: any, index: number) => {
-                const optionText = typeof option === 'string' 
-                  ? option 
-                  : (option.text || option.toString());
-                  
-                const isCorrect = typeof option === 'object' && option.isCorrect;
+              {question.options.map((option: string, index: number) => {
+                const optionText = option;
+                const isCorrect = option === question.correctAnswer;
                 
                 return (
                   <li key={index} className={isCorrect ? 'text-green-600 font-semibold' : ''}>
@@ -146,8 +140,8 @@ const QuizQuestionModal: React.FC<{
         
         <div className="mb-4">
           <h3 className="text-lg font-medium mb-2">Correct Answer:</h3>
-          <p className={question?.answer === question?.answer ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
-            {question?.answer}
+          <p className={question?.correctAnswer ? 'text-green-600 font-semibold' : 'text-gray-800'}>
+            {question?.correctAnswer}
           </p>
         </div>
         
@@ -161,62 +155,23 @@ const QuizQuestionModal: React.FC<{
 
 const ChatMessageComponent: React.FC<ChatMessageProps> = ({ 
   message,
-  onClickCitation,
+  // onClickCitation, // Removed as it's unused
 }) => {
-  const [activeFlashcard, setActiveFlashcard] = useState<any>(null);
-  const [activeQuestion, setActiveQuestion] = useState<any>(null);
+  const [activeFlashcard, setActiveFlashcard] = useState<Flashcard | null>(null);
+  const [activeQuestion, setActiveQuestion] = useState<QuizQuestion | null>(null);
   const [showFlashcardModal, setShowFlashcardModal] = useState(false);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [referencePaths, setReferencePaths] = useState<Record<string, string>>({});
   // State to track which references are currently being fetched
   const [fetchingRefs, setFetchingRefs] = useState<Record<string, boolean>>({});
   const [showMentions, setShowMentions] = useState(false);
-  // State to store flashcard data
-  const [flashcardData, setFlashcardData] = useState<Record<string, { front: string; back: string }>>({});
+
   const [loadingFlashcards, setLoadingFlashcards] = useState<Record<string, boolean>>({});
   // State for API-fetched flashcard and question content - store complete flashcard objects
   const [apiFlashcardData, setApiFlashcardData] = useState<Record<string, Flashcard>>({});
   // State to store quiz data - store complete question objects
   const [apiQuizData, setApiQuizData] = useState<Record<string, QuizQuestion>>({});
   const [loadingQuestions, setLoadingQuestions] = useState<Record<string, boolean>>({});
-  
-  // Function to fetch flashcard data from the reference endpoint
-  const fetchFlashcardData = async (flashcardId: string) => {
-    try {
-      
-      // Set loading state for this flashcard
-      setLoadingFlashcards(prev => ({ ...prev, [flashcardId]: true }));
-      
-      // Make the API call to get flashcard data
-      const apiUrl = `/flashcards/reference/${flashcardId}`;
-      
-      const res = await fetch(apiUrl);
-      
-      if (res.ok) {
-        const data = await res.json();
-        
-        if (data && data.front && data.back) {
-          setFlashcardData(prev => ({
-            ...prev,
-            [flashcardId]: {
-              front: data.front,
-              back: data.back
-            }
-          }));
-        } else {
-          console.error('Incomplete flashcard data:', data);
-        }
-      } else {
-        console.error('Error fetching flashcard:', await res.text());
-      }
-      
-      // Clear loading state
-      setLoadingFlashcards(prev => ({ ...prev, [flashcardId]: false }));
-    } catch (error) {
-      console.error('Error in fetchFlashcardData:', error);
-      setLoadingFlashcards(prev => ({ ...prev, [flashcardId]: false }));
-    }
-  };
   
   // Function to fetch multiple flashcards in a single batch request
   const fetchFlashcardsContentBatch = async (flashcardIds: string[]) => {
@@ -358,11 +313,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       if (apiFlashcardData[flashcardId]) {
         const cachedFlashcard = apiFlashcardData[flashcardId];
         
-        setActiveFlashcard({
-          id: flashcardId,
-          back: cachedFlashcard.back || 'No content available',
-          front: cachedFlashcard.front || 'No front available'
-        });
+        setActiveFlashcard(cachedFlashcard);
         
         setShowFlashcardModal(true);
         return;
@@ -375,21 +326,13 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       if (apiFlashcardData[flashcardId]) {
         const fetchedFlashcard = apiFlashcardData[flashcardId] as Flashcard;
         
-        setActiveFlashcard({
-          id: flashcardId,
-          back: fetchedFlashcard.back || 'No content available',
-          front: fetchedFlashcard.front || 'No front available'
-        });
+        setActiveFlashcard(fetchedFlashcard);
       } else {
         // Fallback if for some reason it's still not in cache
         console.warn('Flashcard not in cache after fetching, using direct API call:', flashcardId);
         const flashcard = await apiClient.get<Flashcard>(`/flashcards/${flashcardId}`);
         
-        setActiveFlashcard({
-          id: flashcardId,
-          back: flashcard.back || 'No content available',
-          front: flashcard.front || 'No front available'
-        });
+        setActiveFlashcard(flashcard);
       }
       
       // Make sure to set the modal visibility to true
@@ -400,66 +343,48 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       // Even on error, show the modal with an error message
       setActiveFlashcard({
         id: flashcardId,
+        front: 'Error',
         back: 'Error loading flashcard content',
-        front: 'Error'
+        type: FlashcardType.QA, // Placeholder
+        difficulty: DifficultyLevel.EASY, // Placeholder
+        createdAt: new Date().toISOString(), // Placeholder
+        updatedAt: new Date().toISOString(), // Placeholder
+        courseId: 'unknown', // Placeholder
       });
       setShowFlashcardModal(true);
-    }
-  };
-  
-  // Function to fetch quiz question data - uses batch internally
-  const fetchQuizData = async (questionId: string) => {
-    try {
-      
-      // Skip if we already have the content
-      if (apiQuizData[questionId]) {
-        return apiQuizData[questionId];
-      }
-      
-      // Set loading state
-      setLoadingQuestions(prev => ({ ...prev, [questionId]: true }));
-      
-      // Use our batch method internally
-      await fetchQuestionsContentBatch([questionId]);
-      
-      // Clear loading state if not already cleared by the batch method
-      setLoadingQuestions(prev => ({ ...prev, [questionId]: false }));
-      
-      // Return the fetched data
-      return apiQuizData[questionId];
-    } catch (error) {
-      console.error('Error in fetchQuizData:', error);
-      setLoadingQuestions(prev => ({ ...prev, [questionId]: false }));
-      return null;
     }
   };
   
   // Handle showing a quiz question in modal using cached data if available
   const handleShowQuestion = async (questionId: string) => {
     try {
-      
       // First check if we already have this question data cached
       if (apiQuizData[questionId]) {
         const cachedQuestion = apiQuizData[questionId] as QuizQuestion;
         
         setActiveQuestion({
-          id: questionId,
+          id: cachedQuestion.id,
           question: cachedQuestion.question || 'No question content available',
           options: cachedQuestion.options || [],
-          answer: cachedQuestion.correctAnswer || 'No answer content available'
+          correctAnswer: cachedQuestion.correctAnswer || 'No answer content available',
+          createdAt: cachedQuestion.createdAt,
+          updatedAt: cachedQuestion.updatedAt,
+          quizId: cachedQuestion.quizId
         });
         
         setShowQuestionModal(true);
         return;
       }
       
-      
-      
       // Show loading state in the modal
       setActiveQuestion({
         id: questionId,
         question: 'Loading...',
-        options: []
+        options: [],
+        correctAnswer: '', // Placeholder
+        createdAt: new Date().toISOString(), // Placeholder
+        updatedAt: new Date().toISOString(), // Placeholder
+        quizId: 'unknown' // Placeholder
       });
       setShowQuestionModal(true);
       
@@ -470,30 +395,24 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       if (apiQuizData[questionId]) {
         const fetchedQuestion = apiQuizData[questionId] as QuizQuestion;
         
-        setActiveQuestion({
-          id: questionId,
-          question: fetchedQuestion.question || 'No question content available',
-          options: fetchedQuestion.options || [],
-          answer: fetchedQuestion.correctAnswer || 'No answer content available'
-        });
+        setActiveQuestion(fetchedQuestion);
       } else {
         // Fallback if for some reason it's still not in cache
         console.warn('Question not in cache after fetching, using direct API call:', questionId);
         const question = await apiClient.get<QuizQuestion>(`/quizzes/question/${questionId}`);
         
-        setActiveQuestion({
-          id: questionId,
-          question: question.question || 'No question content available',
-          options: question.options || [],
-          answer: question.correctAnswer || 'No answer content available'
-        });
+        setActiveQuestion(question);
       }
     } catch (error) {
       console.error('Error in handleShowQuestion:', error);
       setActiveQuestion({
         id: questionId,
         question: 'An error occurred while loading the question',
-        options: []
+        options: [],
+        correctAnswer: '', // Placeholder
+        createdAt: new Date().toISOString(), // Placeholder
+        updatedAt: new Date().toISOString(), // Placeholder
+        quizId: 'unknown' // Placeholder
       });
     }
   };
@@ -501,7 +420,6 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   const isUser = message.role === MessageRole.USER;
 
   // Use refs to track which messages have been processed for reference paths
-  const processedMessagesRef = useRef<Set<string>>(new Set<string>());
   
   // Effect to handle fetching reference paths
   useEffect(() => {
@@ -608,42 +526,51 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                   remarkPlugins={[remarkGfm]}
                   components={{
                     // Properly handle all list types, especially asterisk bullet points
-                    ul: ({node, ...props}) => <ul className="list-disc pl-6 my-2 space-y-1" {...props} />,
-                    ol: ({node, ...props}) => <ol className="list-decimal pl-6 my-2 space-y-1" {...props} />,
-                    li: ({node, ...props}) => <li className="my-1" {...props} />,
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    ul: ({node: _node, ...props}) => <ul className="list-disc pl-6 my-2 space-y-1" {...props} />,
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    ol: ({node: _node, ...props}) => <ol className="list-decimal pl-6 my-2 space-y-1" {...props} />,
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    li: ({node: _node, ...props}) => <li className="my-1" {...props} />,
                     
                     // Handle code blocks and inline code
-                    code: ({node, className, children, ...props}: any) => {
-                      const match = /language-(\w+)/.exec(className || '');
-                      const isInline = props.inline || false;
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    code: ({ node: _node, className, children, inline, ...htmlProps }: { node?: unknown; className?: string; children?: React.ReactNode; inline?: boolean } & Omit<React.ComponentPropsWithoutRef<'code'>, 'inline'|'children'|'className'|'node'>) => {
+                      const isInline = inline || false;
                       return !isInline ? (
                         <pre className="bg-gray-100 rounded p-2 overflow-auto my-2 text-sm">
-                          <code className={className} {...props}>
+                          <code className={className} {...htmlProps}>
                             {children}
                           </code>
                         </pre>
                       ) : (
-                        <code className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono" {...props}>
+                        <code className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono" {...htmlProps}>
                           {children}
                         </code>
                       );
                     },
                     
                     // Ensure paragraphs and text are properly formatted
-                    p: ({node, children, ...props}) => {
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    p: ({node: _node, children, ...props}) => {
                       const textContent = React.Children.toArray(children).join('').trim();
                       if (!textContent) return <br />;
                       return <p className="my-2 break-words" {...props}>{children}</p>;
                     },
                     
                     // Handle headings
-                    h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-6 mb-4" {...props} />,
-                    h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-5 mb-3" {...props} />,
-                    h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-4 mb-2" {...props} />,
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    h1: ({node: _node, ...props}) => <h1 className="text-2xl font-bold mt-6 mb-4" {...props} />,
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    h2: ({node: _node, ...props}) => <h2 className="text-xl font-bold mt-5 mb-3" {...props} />,
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    h3: ({node: _node, ...props}) => <h3 className="text-lg font-bold mt-4 mb-2" {...props} />,
                     
                     // Handle emphasis and strong
-                    em: ({node, ...props}) => <em className="italic" {...props} />,
-                    strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    em: ({node: _node, ...props}) => <em className="italic" {...props} />,
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    strong: ({node: _node, ...props}) => <strong className="font-bold" {...props} />,
                   }}
                 >
                   {contentToRender}
@@ -717,9 +644,6 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     const isDeleted = displayPath.includes('Deleted') || displayPath.includes('no longer available');
     const deletedClass = isDeleted ? 'opacity-70' : '';
     
-    // For file references, check if we have the file content
-    const fileContent = tag.type === 'file' ? referenceContentCache[tag.id]?.content : null;
-
     let isLoading = false;
     
     switch(tag.type) {
@@ -983,7 +907,6 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
 // Create module-level (global) caches that persist between renders and component instances
 // These need to be outside the component to truly persist across renders
 const referencePathCache: Record<string, string> = {};
-const referenceContentCache: Record<string, {content: string; name: string; path: string}> = {};
 
 export const ChatMessage = React.memo(ChatMessageComponent, (prev, next) =>
   prev.message.id === next.message.id &&

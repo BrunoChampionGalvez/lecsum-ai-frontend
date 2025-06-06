@@ -7,18 +7,28 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { QuizzesService, Quiz } from '../../../lib/api/quizzes.service';
 import { useSubscriptionLimits } from '../../../hooks/useSubscriptionLimits';
+import { toast } from 'react-hot-toast';
+import { AxiosError } from 'axios';
+
+interface QuizQuestion {
+  question: string;
+  answer: string;
+  choices: string[];
+}
 
 export default function EditQuizPage({ params }: { params: Promise<{ quizId: string }> }) {
   const router = useRouter();
   const { quizId } = React.use(params);
   const [quiz, setQuiz] = React.useState<Quiz | null>(null);
-  const [questions, setQuestions] = React.useState<any[]>([]);
+  const [questions, setQuestions] = React.useState<QuizQuestion[]>([]);
   const [title, setTitle] = React.useState('');
   const [editingTitle, setEditingTitle] = React.useState(false);
   const [editedTitle, setEditedTitle] = React.useState('');
   const [savingTitle, setSavingTitle] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_error, setError] = React.useState<string | null>(null);
+  const { remaining } = useSubscriptionLimits();
 
   const handleSaveTitle = async () => {
     if (!editedTitle.trim() || editedTitle === title) {
@@ -41,8 +51,18 @@ export default function EditQuizPage({ params }: { params: Promise<{ quizId: str
       });
       setTitle(editedTitle);
       setEditingTitle(false);
-    } catch (e) {
-      setError('Failed to update title.');
+    } catch (error: unknown) {
+      console.error('Failed to update title:', error);
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        toast.error(error.response.data.message);
+        setError(error.response.data.message);
+      } else if (error instanceof Error) {
+        toast.error(error.message || 'Failed to update title.');
+        setError(error.message || 'Failed to update title.');
+      } else {
+        toast.error('An unknown error occurred while updating the title.');
+        setError('An unknown error occurred while updating the title.');
+      }
     } finally {
       setSavingTitle(false);
     }
@@ -65,8 +85,18 @@ export default function EditQuizPage({ params }: { params: Promise<{ quizId: str
           })) || []
         );
         setError(null);
-      } catch (err) {
-        setError('Failed to load quiz.');
+      } catch (error: unknown) {
+        console.error('Failed to load quiz:', error);
+        if (error instanceof AxiosError && error.response?.data?.message) {
+          toast.error(error.response.data.message);
+          setError(error.response.data.message);
+        } else if (error instanceof Error) {
+          toast.error(error.message || 'Failed to load quiz.');
+          setError(error.message || 'Failed to load quiz.');
+        } else {
+          toast.error('An unknown error occurred while loading the quiz.');
+          setError('An unknown error occurred while loading the quiz.');
+        }
       } finally {
         setLoading(false);
       }
@@ -140,8 +170,18 @@ export default function EditQuizPage({ params }: { params: Promise<{ quizId: str
       await QuizzesService.updateQuiz(quizId, payload);
       setError(null);
       router.push('/quizzes');
-    } catch (err) {
-      setError('Failed to save quiz.');
+    } catch (error: unknown) {
+      console.error('Failed to save quiz:', error);
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        toast.error(error.response.data.message);
+        setError(error.response.data.message);
+      } else if (error instanceof Error) {
+        toast.error(error.message || 'Failed to save quiz.');
+        setError(error.message || 'Failed to save quiz.');
+      } else {
+        toast.error('An unknown error occurred while saving the quiz.');
+        setError('An unknown error occurred while saving the quiz.');
+      }
     } finally {
       setLoading(false);
     }
@@ -152,7 +192,6 @@ export default function EditQuizPage({ params }: { params: Promise<{ quizId: str
     <MainLayout>
       {/* Subscription limit warning for quiz questions */}
       {(() => {
-        const { remaining } = useSubscriptionLimits();
         const questionsLeft = Math.max(remaining.quizQuestions - questions.length, 0);
         if (questionsLeft === 0) {
           return (
@@ -290,14 +329,12 @@ export default function EditQuizPage({ params }: { params: Promise<{ quizId: str
               </div>
             ))}
             {(() => {
-              const { remaining } = useSubscriptionLimits();
               const questionsLeft = Math.max(remaining.quizQuestions - questions.length, 0);
               return (
                 <Button type="button" variant="secondary" onClick={handleAddQuestion} disabled={questionsLeft === 0}>Add Question +</Button>
               );
             })()}
             {(() => {
-              const { remaining } = useSubscriptionLimits();
               const questionsLeft = Math.max(remaining.quizQuestions - questions.length, 0);
               return (
                 <Button type="submit" variant="primary" isLoading={loading} disabled={questionsLeft === 0}>Save</Button>

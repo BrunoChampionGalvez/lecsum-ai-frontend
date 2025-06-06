@@ -1,6 +1,16 @@
 "use client";
 
 import React, { useState } from 'react';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
 import { Card } from '../ui/Card';
 import { SubscriptionDetails, SubscriptionPlan } from '@/api/subscription';
 import subscriptionApi from '@/api/subscription';
@@ -8,10 +18,9 @@ import subscriptionApi from '@/api/subscription';
 interface SubscriptionPlanTabProps {
   subscription: SubscriptionDetails | null;
   availablePlans: SubscriptionPlan[];
-  onManageClick?: () => void;
 }
 
-export const SubscriptionPlanTab: React.FC<SubscriptionPlanTabProps> = ({ subscription, availablePlans, onManageClick }) => {
+export const SubscriptionPlanTab: React.FC<SubscriptionPlanTabProps> = ({ subscription, availablePlans }) => {
   const [isUpgrading, setIsUpgrading] = useState<boolean>(false);
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
   
@@ -34,7 +43,8 @@ export const SubscriptionPlanTab: React.FC<SubscriptionPlanTabProps> = ({ subscr
     try {
       await subscriptionApi.upgradePlan(planType);
       window.location.reload(); // Refresh to show updated subscription
-    } catch (err) {
+    } catch (errRaw) {
+      const err = errRaw as ApiError;
       console.error('Failed to upgrade plan:', err);
       setUpgradeError('Failed to upgrade your subscription. Please try again later.');
     } finally {
@@ -62,7 +72,7 @@ export const SubscriptionPlanTab: React.FC<SubscriptionPlanTabProps> = ({ subscr
           {isFreeTrialActive && (
             <div className="bg-[var(--primary-light)] bg-opacity-10 p-4 rounded-md mb-4">
               <p className="font-medium">
-                You're currently on a free trial that ends on {formatDate(plan.endDate)} ({trialDaysLeft} days left).
+                You&apos;re currently on a free trial that ends on {formatDate(plan.endDate)} ({trialDaysLeft} days left).
               </p>
             </div>
           )}

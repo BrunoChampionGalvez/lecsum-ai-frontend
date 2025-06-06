@@ -1,9 +1,9 @@
 import React from 'react';
-import { File, FileType } from '../../lib/api/files.service';
+import { AppFile, FileType } from '../../lib/api/files.service';
 import { Badge } from '../ui/Badge';
 
 interface FileItemProps {
-  file: File;
+  file: AppFile;
   onSelect?: () => void;
   isSelected?: boolean;
   showActions?: boolean;

@@ -1,6 +1,16 @@
 "use client";
 
 import { MainLayout } from '../ui/MainLayout';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
 import { CourseDeleteModal } from './CourseDeleteModal';
 import { ProtectedRoute } from '../auth/ProtectedRoute';
 import { Card } from '../ui/Card';
@@ -32,7 +42,7 @@ export function CoursesList() {
       setCourses(prev => prev.filter(c => c.id !== selectedCourse.id));
       setDeleteModalOpen(false);
       setSelectedCourse(null);
-    } catch (e) {
+    } catch {
       toast.error('Failed to delete course.');
     } finally {
       setDeletingCourseId(null);
@@ -125,15 +135,17 @@ export function CoursesList() {
       
       setEditingCourseId(null);
       toast.success('Course updated successfully');
-    } catch (err: any) {
+    } catch (errRaw) {
+      const err = errRaw as ApiError;
       console.error('Error updating course:', err);
-      toast.error(err.response?.data?.message || 'Failed to update course');
+      toast.error(err.response?.data?.message || err.message || 'Failed to update course');
     } finally {
       setIsSaving(false);
     }
   };
 
   React.useEffect(() => {
+    // Define fetchCourses inside useEffect to capture dependencies correctly
     async function fetchCourses() {
       try {
         setLoading(true);
@@ -149,7 +161,7 @@ export function CoursesList() {
     }
 
     fetchCourses();
-  }, []);
+  }, []); // fetchCourses is now defined within the effect, so it's not a missing dependency
 
   return (
     <ProtectedRoute>
@@ -186,7 +198,7 @@ export function CoursesList() {
           </div>
         ) : courses.length === 0 ? (
           <div className="py-10 text-center">
-            <p className="text-gray-500 mb-4">You don't have any courses yet.</p>
+            <p className="text-gray-500 mb-4">You don&apos;t have any courses yet.</p>
             <Link href="/courses/new">
               <Button variant="primary">Create Your First Course</Button>
             </Link>

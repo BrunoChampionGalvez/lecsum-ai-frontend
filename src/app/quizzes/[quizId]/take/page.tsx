@@ -6,13 +6,13 @@ import React from 'react';
 import { useChatContext } from '../../../../lib/chat/ChatContext';
 import { toast } from 'react-hot-toast';
 import { QuizzesService, Quiz } from '../../../../lib/api/quizzes.service';
+import { AxiosError } from 'axios';
 
 export default function TakeQuizPage({ params }: { params: Promise<{ quizId: string }> }) {
   const { quizId } = React.use(params);
   
   // Get chat context for Ask Lecsi functionality
   const { 
-    isSidebarOpen,
     setIsSidebarOpen,
     setCreateNewSession,
     hasActiveSession,
@@ -36,8 +36,16 @@ export default function TakeQuizPage({ params }: { params: Promise<{ quizId: str
         const data = await QuizzesService.getQuizById(quizId);
         setQuiz(data);
         setError(null);
-      } catch (err) {
-        setError('Failed to load quiz.');
+      } catch (error: unknown) {
+        let errorMessage = 'Failed to load quiz.';
+        if (error instanceof AxiosError && error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        toast.error(errorMessage);
+        console.error('Failed to load quiz:', error);
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -65,8 +73,16 @@ export default function TakeQuizPage({ params }: { params: Promise<{ quizId: str
       const result = await QuizzesService.submitQuizAnswers(quiz.id, { answers: allAnswers });
       setScore(result.lastScore ?? 0);
       setFinished(true);
-    } catch (err) {
-      setError('Failed to submit answers.');
+    } catch (error: unknown) {
+      let errorMessage = 'Failed to submit answers.';
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      toast.error(errorMessage);
+      console.error('Failed to submit answers:', error);
+      setError(errorMessage);
     }
   };
 
@@ -138,7 +154,7 @@ Choices:
     const quizMaterial = {
       id: quiz.id,
       displayName: quiz.title.replace(/ /g, '_'),
-      type: 'quiz' as 'quiz', // Type assertion to fix TypeScript error
+      type: 'quiz' as const, // Use const assertion
       originalName: quiz.title,
       courseId: quiz.courseId
     };
@@ -229,7 +245,7 @@ Choices:
                 {(() => {
                   // Ensure the correct answer is present and shuffle options
                   const q = quiz.questions[current];
-                  let choices = Array.isArray(q.options) ? [...q.options] : [];
+                  const choices = Array.isArray(q.options) ? [...q.options] : [];
                   if (!choices.includes(q.correctAnswer)) {
                     choices.push(q.correctAnswer);
                   }

@@ -7,13 +7,20 @@ import Link from 'next/link';
 import { QuizzesService } from '../../../lib/api/quizzes.service';
 import { useSubscriptionLimits } from '../../../hooks/useSubscriptionLimits';
 import { toast } from 'react-hot-toast';
+import { AxiosError } from 'axios';
 
 import { CoursesService, Course } from '../../../lib/api/courses.service';
+
+interface QuizQuestion {
+  question: string;
+  answer: string;
+  choices: string[];
+}
 
 export default function CreateQuizPage() {
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [questions, setQuestions] = useState<any[]>([{ question: "", answer: "", choices: ["", ""] }]);
+  const [questions, setQuestions] = useState<QuizQuestion[]>([{ question: "", answer: "", choices: ["", ""] }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -117,8 +124,18 @@ export default function CreateQuizPage() {
       
       // Refresh subscription limits after successful creation
       refreshSubscriptionLimits();
-    } catch (err) {
-      setError('Failed to create quiz.');
+    } catch (error: unknown) {
+      console.error('Failed to create quiz:', error);
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        toast.error(error.response.data.message);
+        setError(error.response.data.message);
+      } else if (error instanceof Error) {
+        toast.error(error.message || 'Failed to create quiz.');
+        setError(error.message || 'Failed to create quiz.');
+      } else {
+        toast.error('An unknown error occurred while creating the quiz.');
+        setError('An unknown error occurred while creating the quiz.');
+      }
     } finally {
       setLoading(false);
     }

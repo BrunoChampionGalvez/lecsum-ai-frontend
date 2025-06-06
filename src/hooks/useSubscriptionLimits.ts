@@ -1,6 +1,16 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
 import subscriptionApi, { SubscriptionWithUsage } from '../api/subscription';
 
 interface SubscriptionLimits {
@@ -32,7 +42,8 @@ export function useSubscriptionLimits(): SubscriptionLimits {
       console.log('Subscription limits:', data);
       setSubscriptionData(data);
       setError(null);
-    } catch (err: any) {
+    } catch (errRaw) {
+      const err = errRaw as ApiError;
       console.error('Error fetching subscription details:', err);
       setError('Could not fetch subscription limits');
     } finally {

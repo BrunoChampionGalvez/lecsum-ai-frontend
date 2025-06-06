@@ -1,11 +1,21 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { CoursesService, Course } from '../../lib/api/courses.service';
 import { FoldersService } from '../../lib/api/folders.service';
-import { FilesService, AppFile } from '../../lib/api/files.service';
+import { FilesService } from '../../lib/api/files.service';
 import { Folder, APIFile } from '../../lib/api/types';
 import { toast } from 'react-hot-toast';
 import { useSubscriptionLimits } from '../../hooks/useSubscriptionLimits';
@@ -131,7 +141,7 @@ export const QuizzesGenerationModal: React.FC<QuizzesGenerationModalProps> = ({
         fetchCourses();
       }
     }
-  }, [isOpen, initialCourses]);
+  }, [isOpen, initialCourses, skipCourseSelection]);
 
   // Fetch courses for the first step
   const fetchCourses = async () => {
@@ -163,7 +173,8 @@ export const QuizzesGenerationModal: React.FC<QuizzesGenerationModalProps> = ({
           const directData = await response.json();
           console.log('QuizzesGenerationModal.fetchCourses: Direct fetch data:', directData);
         }
-      } catch (fetchError) {
+      } catch (fetchErrorRaw) {
+        const fetchError = fetchErrorRaw as ApiError;
         console.error('QuizzesGenerationModal.fetchCourses: Direct fetch error:', fetchError);
       }
       
@@ -177,7 +188,8 @@ export const QuizzesGenerationModal: React.FC<QuizzesGenerationModalProps> = ({
       }
       
       setCourses(coursesData);
-    } catch (error) {
+    } catch (errorRaw) {
+      const error = errorRaw as ApiError;
       console.error('QuizzesGenerationModal.fetchCourses: Error fetching courses:', error);
       toast.error('Failed to load courses');
     } finally {
@@ -209,7 +221,8 @@ export const QuizzesGenerationModal: React.FC<QuizzesGenerationModalProps> = ({
       }));
       setFiles(apiFiles);
       
-    } catch (error) {
+    } catch (errorRaw) {
+      const error = errorRaw as ApiError;
       console.error('Error fetching course content:', error);
       toast.error('Failed to load course content');
     } finally {
@@ -264,7 +277,8 @@ export const QuizzesGenerationModal: React.FC<QuizzesGenerationModalProps> = ({
             files: apiFiles
           }
         }));
-      } catch (error) {
+      } catch (errorRaw) {
+        const error = errorRaw as ApiError;
         console.error('Error fetching folder contents:', error);
         toast.error('Failed to load folder contents');
       }
@@ -301,7 +315,7 @@ export const QuizzesGenerationModal: React.FC<QuizzesGenerationModalProps> = ({
   };
 
   // Handle generation settings change
-  const handleSettingsChange = (key: keyof GenerationSettings, value: any) => {
+  const handleSettingsChange = (key: keyof GenerationSettings, value: string | number) => {
     setSettings(prev => ({
       ...prev,
       [key]: value
@@ -341,7 +355,7 @@ export const QuizzesGenerationModal: React.FC<QuizzesGenerationModalProps> = ({
       setLoading(prevState => ({ ...prevState, generating: true }));
       
       // Call the API to generate quiz
-      let allFileIds = [...selectedItems.files];
+      const allFileIds = [...selectedItems.files];
       
       // Eliminate duplicates
       const uniqueFileIds = [...new Set(allFileIds)];
@@ -363,7 +377,8 @@ export const QuizzesGenerationModal: React.FC<QuizzesGenerationModalProps> = ({
       
       // Refresh subscription limits after successful generation
       refreshSubscriptionLimits();
-    } catch (error) {
+    } catch (errorRaw) {
+      const error = errorRaw as ApiError;
       console.error('Error generating quiz:', error);
       toast.error('Failed to generate quiz');
     } finally {

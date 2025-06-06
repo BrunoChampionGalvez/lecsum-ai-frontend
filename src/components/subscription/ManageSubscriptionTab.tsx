@@ -1,6 +1,16 @@
 "use client";
 
 import React, { useState } from 'react';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
 import { SubscriptionDetails } from '@/api/subscription';
@@ -53,7 +63,8 @@ export const ManageSubscriptionTab: React.FC<ManageSubscriptionTabProps> = ({
       setSuccessMessage('Your subscription has been canceled. You will have access until the end of your current billing period.');
       onSubscriptionUpdate(); // Refresh parent component data
       setShowCancelModal(false);
-    } catch (err) {
+    } catch (errRaw) {
+      const err = errRaw as ApiError;
       console.error('Failed to cancel subscription:', err);
       setError('Failed to cancel your subscription. Please try again later.');
     } finally {
@@ -72,7 +83,8 @@ export const ManageSubscriptionTab: React.FC<ManageSubscriptionTabProps> = ({
       await subscriptionApi.upgradePlan(planType);
       setSuccessMessage('Your subscription has been upgraded successfully!');
       onSubscriptionUpdate(); // Refresh parent component data
-    } catch (err) {
+    } catch (errRaw) {
+      const err = errRaw as ApiError;
       console.error('Failed to upgrade subscription:', err);
       setError('Failed to upgrade your subscription. Please try again later.');
     } finally {
@@ -178,7 +190,7 @@ export const ManageSubscriptionTab: React.FC<ManageSubscriptionTabProps> = ({
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 mb-1">Are you sure you want to cancel?</h3>
-                  <p className="text-gray-600 mb-2">Your subscription will be canceled immediately, but you'll still have access to all features until the end of your current billing period:</p>
+                  <p className="text-gray-600 mb-2">Your subscription will be canceled immediately, but you&apos;ll still have access to all features until the end of your current billing period:</p>
                   <p className="text-gray-800 font-semibold">{formatDate(subscription.plan.endDate)}</p>
                 </div>
               </div>
@@ -186,8 +198,8 @@ export const ManageSubscriptionTab: React.FC<ManageSubscriptionTabProps> = ({
               <div className="bg-gray-50 rounded-lg p-4 mb-2 border border-gray-100">
                 <h4 className="font-medium mb-2">What happens next:</h4>
                 <ul className="list-disc pl-5 space-y-1 text-gray-700">
-                  <li>You won't be charged again</li>
-                  <li>You'll keep full access until the end date</li>
+                  <li>You won&apos;t be charged again</li>
+                  <li>You&apos;ll keep full access until the end date</li>
                   <li>You can reactivate your subscription anytime</li>
                   <li>Your account and data will remain intact</li>
                 </ul>

@@ -5,6 +5,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { AppFile } from '../../lib/api/files.service';
 import { FileItem } from '../files/FileItem';
+import { AxiosError } from 'axios';
 
 interface ChatContextSelectorProps {
   files: AppFile[];
@@ -35,8 +36,15 @@ export const ChatContextSelector: React.FC<ChatContextSelectorProps> = ({
     
     try {
       await onSave(selectedIds);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update context. Please try again.');
+    } catch (error: unknown) {
+      let errorMessage = 'Failed to update context. Please try again.';
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      setError(errorMessage);
+      console.error('Failed to update context:', error);
     } finally {
       setIsLoading(false);
     }

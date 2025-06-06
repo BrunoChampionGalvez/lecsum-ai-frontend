@@ -1,6 +1,16 @@
 "use client";
 
 import React from 'react';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { Card } from '../ui/Card';
@@ -25,7 +35,6 @@ export function FlashcardDeckEditor({ deckId }: FlashcardDeckEditorProps) {
   const [editMode, setEditMode] = React.useState(false);
   const [editedName, setEditedName] = React.useState('');
   const [editedDescription, setEditedDescription] = React.useState('');
-  const [showGenerateModal, setShowGenerateModal] = React.useState(false);
   const router = useRouter();
   const { remaining } = useSubscriptionLimits();
 
@@ -82,7 +91,8 @@ export function FlashcardDeckEditor({ deckId }: FlashcardDeckEditorProps) {
             toast.success('Flashcard deleted');
             setFlashcards(cards => cards.filter((_, i) => i !== idx));
           })
-          .catch((err: any) => {
+          .catch((errRaw) => {
+            const err = errRaw as ApiError;
             console.error('Error deleting flashcard:', err);
             toast.error('Failed to delete flashcard');
           });

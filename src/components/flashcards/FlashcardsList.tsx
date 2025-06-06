@@ -1,6 +1,16 @@
 "use client";
 
 import React from 'react';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
 import Link from 'next/link';
 import { useChatContext } from '@/lib/chat/ChatContext';
 import { MentionedMaterial } from '@/lib/api/chat.service';
@@ -230,7 +240,8 @@ export function FlashcardsList() {
       
       setEditingDeckId(null);
       toast.success('Deck updated successfully');
-    } catch (err: any) {
+    } catch (errRaw) {
+      const err = errRaw as ApiError;
       console.error('Error updating deck:', err);
       toast.error(err.response?.data?.message || 'Failed to update deck');
     } finally {

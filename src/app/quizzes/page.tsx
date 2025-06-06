@@ -9,6 +9,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
+import { AxiosError } from 'axios';
 import { QuizzesGenerationModal } from '../../components/quizzes/QuizzesGenerationModal';
 import { Modal } from '../../components/ui/Modal';
 
@@ -183,8 +184,15 @@ export default function QuizzesPage() {
       setQuizzes(prev => prev.map(q => q.id === quiz.id ? { ...q, title: editedQuizTitle } : q));
       setEditingQuizId(null);
       setEditedQuizTitle('');
-    } catch (e) {
-      alert('Failed to update quiz title.');
+    } catch (error: unknown) {
+      console.error('Failed to update quiz title:', error);
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else if (error instanceof Error) {
+        toast.error(error.message || 'Failed to update quiz title.');
+      } else {
+        toast.error('An unknown error occurred while updating the quiz title.');
+      }
     } finally {
       setSavingQuizTitle(false);
     }
@@ -202,8 +210,18 @@ export default function QuizzesPage() {
         );
         setQuizzes(quizzesArr.flat());
         setError(null);
-      } catch (err) {
-        setError('Failed to load quizzes.');
+      } catch (error: unknown) {
+        console.error('Failed to load quizzes:', error);
+        if (error instanceof AxiosError && error.response?.data?.message) {
+          toast.error(error.response.data.message);
+          setError(error.response.data.message);
+        } else if (error instanceof Error) {
+          toast.error(error.message || 'Failed to load quizzes.');
+          setError(error.message || 'Failed to load quizzes.');
+        } else {
+          toast.error('An unknown error occurred while loading quizzes.');
+          setError('An unknown error occurred while loading quizzes.');
+        }
       } finally {
         setLoading(false);
       }
