@@ -15,6 +15,7 @@ interface FlashcardDeckEditorProps {
 }
 
 import { useRouter } from 'next/navigation';
+import { useSubscriptionLimits } from '../../hooks/useSubscriptionLimits';
 
 export function FlashcardDeckEditor({ deckId }: FlashcardDeckEditorProps) {
   const [deck, setDeck] = React.useState<{ id: string; name: string; description?: string; courseId: string }>({ id: '', name: '', description: '', courseId: '' });
@@ -26,6 +27,7 @@ export function FlashcardDeckEditor({ deckId }: FlashcardDeckEditorProps) {
   const [editedDescription, setEditedDescription] = React.useState('');
   const [showGenerateModal, setShowGenerateModal] = React.useState(false);
   const router = useRouter();
+  const { remaining } = useSubscriptionLimits();
 
   React.useEffect(() => {
     async function fetchDeckAndFlashcards() {
@@ -154,10 +156,15 @@ export function FlashcardDeckEditor({ deckId }: FlashcardDeckEditorProps) {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleSave();
+  };
+
   return (
     <ProtectedRoute>
       <MainLayout>
-        <div className="max-w-5xl mx-auto mt-10">
+        <div className="max-w-2xl mx-auto mt-10">
           <div className="mb-6">
             {editMode ? (
               <Card className="p-4 mb-6">
@@ -231,6 +238,7 @@ export function FlashcardDeckEditor({ deckId }: FlashcardDeckEditorProps) {
                     variant="white-outline" 
                     className="text-sm border border-[var(--primary)]" 
                     onClick={() => { toast.success('Lecsi AI assistant would appear here'); }}
+                    type="button"
                   >
                     Ask Lecsi <span role="img" aria-label="lightbulb">💡</span>
                   </Button>
@@ -242,9 +250,6 @@ export function FlashcardDeckEditor({ deckId }: FlashcardDeckEditorProps) {
           <h2 className="text-xl font-semibold text-[var(--primary)] mb-4">Flashcards</h2>
           {/* Subscription limit warning for flashcards */}
           {(() => {
-            // eslint-disable-next-line react-hooks/rules-of-hooks
-            const limits = require('../../hooks/useSubscriptionLimits');
-            const { remaining } = limits.useSubscriptionLimits();
             const cardsLeft = Math.max(remaining.flashcards - flashcards.length, 0);
             if (cardsLeft === 0) {
               return (
@@ -269,16 +274,59 @@ export function FlashcardDeckEditor({ deckId }: FlashcardDeckEditorProps) {
               <div className="animate-pulse flex flex-col items-center">
                 <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
                 <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-{{ ... }}
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Flashcards editing section */}
+              {flashcards.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 mb-4">No flashcards in this deck yet. Add your first card!</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {flashcards.map((card, idx) => (
+                    <Card key={card.id || `new-card-${idx}`} className="p-4 relative">
+                      <button 
+                        onClick={() => handleRemoveCard(idx)}
+                        type="button"
+                        className="absolute top-2 right-2 p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full"
+                        aria-label="Remove card"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                      <div className="mb-4">
+                        <label htmlFor={`front-${idx}`} className="block text-sm font-medium text-gray-700 mb-1">Front</label>
+                        <textarea
+                          id={`front-${idx}`}
+                          value={card.front}
+                          onChange={(e) => handleCardChange(idx, 'front', e.target.value)}
+                          className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)] min-h-[120px]"
+                          placeholder="Front side content"
+                          required
+                        ></textarea>
+                      </div>
+                      <div>
+                        <label htmlFor={`back-${idx}`} className="block text-sm font-medium text-gray-700 mb-1">Back</label>
+                        <textarea
+                          id={`back-${idx}`}
+                          value={card.back}
+                          onChange={(e) => handleCardChange(idx, 'back', e.target.value)}
+                          className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)] min-h-[120px]"
+                          placeholder="Back side content"
+                          required
+                        ></textarea>
+                      </div>
+                    </Card>
                   ))}
                 </div>
               )}
               
               <div className="flex justify-center flex-wrap gap-2 mb-8">
                 {(() => {
-                  // eslint-disable-next-line react-hooks/rules-of-hooks
-                  const limits = require('../../hooks/useSubscriptionLimits');
-                  const { remaining } = limits.useSubscriptionLimits();
                   const cardsLeft = Math.max(remaining.flashcards - flashcards.length, 0);
                   return (
                     <Button type="button" variant="orange" onClick={handleAddCard} disabled={cardsLeft === 0}>Add Card</Button>
