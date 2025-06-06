@@ -477,32 +477,36 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         inReference = false;
         if (currentRefSegment) {
           const contentToParse = currentRefSegment.content.trim();
+          // Declare jsonStrToParse here to be accessible in catch
+          let jsonStrToParse = ""; // Initialize
+
           try {
-            currentRefSegment.tag = JSON.parse(contentToParse);
-            // Additional check: ensure parsed tag is an object, as expected for ReferenceTag
-            if (typeof currentRefSegment.tag !== 'object' || currentRefSegment.tag === null) {
-              console.error('Parsed reference JSON is not an object. Content:', `"${contentToParse}"`, 'Parsed as:', currentRefSegment.tag);
-              // Create a synthetic error tag
-              currentRefSegment.tag = {
-                type: 'file', // Default type for error display
-                id: 'parse_error_non_object',
-                text: '[Error: Reference data did not parse as a valid object structure.]'
-              } as ReferenceTag;
+            console.log('[CASCADE_DEBUG] Processing [/REF]. Accumulated content (first 100 chars):', `"${contentToParse.substring(0, 100)}"`);
+            if (!contentToParse) {
+              console.warn('[CASCADE_DEBUG] Reference segment has empty content after trim.');
+              currentRefSegment.tag = { type: 'file', id: 'empty_ref_content', text: '[Error: Empty reference content]' } as ReferenceTag;
+            } else {
+              jsonStrToParse = contentToParse; // Assign here
+              console.log('[CASCADE_DEBUG] Attempting JSON.parse on (first 100 chars):', `"${jsonStrToParse.substring(0, 100)}"`);
+              currentRefSegment.tag = JSON.parse(jsonStrToParse);
+
+              if (typeof currentRefSegment.tag !== 'object' || currentRefSegment.tag === null) {
+                console.error('[CASCADE_DEBUG] Parsed reference JSON is not an object. Parsed as:', currentRefSegment.tag, "Using string (first 100 chars):", `"${jsonStrToParse.substring(0, 100)}"`);
+                currentRefSegment.tag = { type: 'file', id: 'parse_error_non_object', text: '[Error: Reference data did not parse as a valid object structure.]' } as ReferenceTag;
+              } else {
+                console.log('[CASCADE_DEBUG] JSON.parse successful. Tag:', currentRefSegment.tag);
+              }
             }
-          } catch (e: unknown) { // Changed from any to unknown
+          } catch (e: unknown) {
             let errorMessage = 'An unknown error occurred during JSON parsing.';
             if (e instanceof Error) {
               errorMessage = e.message;
             } else if (typeof e === 'string') {
               errorMessage = e;
             }
-            console.error('Failed to parse reference JSON. Error:', errorMessage, 'Content was:', `"${contentToParse}"`);
-            // Create a synthetic error tag
-            currentRefSegment.tag = {
-              type: 'file', // Default type for error display
-              id: 'parse_error',
-              text: `[Error parsing reference content: ${errorMessage}]`
-            } as ReferenceTag; // Cast to ReferenceTag
+            // jsonStrToParse will hold the content that was attempted, or be an empty string if contentToParse was empty.
+            console.error('[CASCADE_DEBUG] JSON.parse FAILED. Error:', errorMessage, "Attempted to parse (first 100 chars):", `"${jsonStrToParse.substring(0, 100)}"`);
+            currentRefSegment.tag = { type: 'file', id: 'parse_error', text: `[Error parsing reference content: ${errorMessage}]` } as ReferenceTag;
           }
         }
         currentRefSegment = null;
