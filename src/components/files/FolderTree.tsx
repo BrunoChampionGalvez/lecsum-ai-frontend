@@ -522,7 +522,12 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
               placeholder="Folder name"
               value={newFolderName[folderId] || ''}
               onChange={(e) => setNewFolderName({ ...newFolderName, [folderId]: e.target.value })}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder(folderId)}
+              onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (creatingFolder) return; // Prevent multiple submissions
+                    handleCreateFolder(folderId);
+                  }
+                }}
               autoFocus
             />
             <Button 

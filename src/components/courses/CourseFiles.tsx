@@ -25,6 +25,7 @@ export const CourseFiles = ({ courseId, folderTreeReady, files, folders, uploadM
     const [lastUploadedFileToFolder, setLastUploadedFileToFolder] = useState<AppFile | null>(null);
     const [showNewFolderInput, setShowNewFolderInput] = useState<Record<string, boolean>>({});
     const [newFolderName, setNewFolderName] = useState<Record<string, string>>({});
+    const [isCreatingRootFolder, setIsCreatingRootFolder] = useState(false);
 
     const handleFileUploaded = async (newlyUploadedAppFiles: AppFile[]) => {
       setUploadModalOpen(false);
@@ -75,6 +76,9 @@ export const CourseFiles = ({ courseId, folderTreeReady, files, folders, uploadM
       }
       
       try {
+        if (!parentId) {
+          setIsCreatingRootFolder(true);
+        }
         const data = { name, parentId };
         const newlyCreatedFolder = await FoldersService.createFolder(courseId, data);
         
@@ -104,6 +108,10 @@ export const CourseFiles = ({ courseId, folderTreeReady, files, folders, uploadM
       } catch (err) {
         console.error('Error creating folder:', err);
         toast.error('Failed to create folder');
+      } finally {
+        if (!parentId) {
+          setIsCreatingRootFolder(false);
+        }
       }
     };
   
@@ -181,12 +189,19 @@ export const CourseFiles = ({ courseId, folderTreeReady, files, folders, uploadM
                 placeholder="Enter folder name"
                 value={newFolderName['root'] || ''}
                 onChange={(e) => setNewFolderName({ ...newFolderName, root: e.target.value })}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (isCreatingRootFolder) return; // Prevent multiple submissions
+                    handleCreateFolder(); // For root folder, parentId is undefined
+                  }
+                }}
                 autoFocus
               />
               <Button 
-                onClick={() => handleCreateFolder()}
+                onClick={() => handleCreateFolder()} // For root folder, parentId is undefined
                 size="sm"
+                isLoading={isCreatingRootFolder}
+                disabled={isCreatingRootFolder}
               >
                 Create
               </Button>
