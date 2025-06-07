@@ -106,6 +106,24 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
 
+  // Function to handle showing the new subfolder input and expanding the parent
+  const handleShowNewSubfolderInput = async (folderId: string) => {
+    // 1. Ensure the folder is expanded
+    if (!expandedFolders[folderId]) {
+      // If not expanded, call toggleFolder which handles fetching contents and setting expanded state
+      // We don't necessarily need to await toggleFolder here if showing input immediately is fine,
+      // but awaiting ensures content is loaded if that's a dependency for input placement/visibility.
+      await toggleFolder(folderId); 
+    }
+    // 2. Show the new folder input
+    setShowNewFolderInput(prev => ({ ...prev, [folderId]: true }));
+    // Focus the input field after it's rendered
+    setTimeout(() => {
+      const inputElement = document.getElementById(`new-folder-input-${folderId}`);
+      inputElement?.focus();
+    }, 0);
+  };
+
   useEffect(() => {
     if (newlyAddedFile && newlyAddedFile.folderId) {
       const parentFolderId = newlyAddedFile.folderId;
@@ -629,7 +647,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
                 className="p-1 text-gray-500 hover:text-[var(--primary)] hover:bg-gray-100 rounded-full"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowNewFolderInput({ ...showNewFolderInput, [folder.id]: true });
+                  handleShowNewSubfolderInput(folder.id);
                 }}
                 title="Create Subfolder"
               >
@@ -805,8 +823,8 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
         </div>
         
         {/* Root files section - only show files that don't have a folderId */}
-        <div className="flex flex-wrap gap-3 mt-2">
-          {files.filter(file => !file.folderId).map(file => renderFile(file))}
+        <div className="flex flex-col gap-3">
+          {files.filter(file => !file.folderId).sort((a, b) => a.name.localeCompare(b.name)).map(file => renderFile(file))}
         </div>
       </div>
       

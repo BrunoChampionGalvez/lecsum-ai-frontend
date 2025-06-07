@@ -76,15 +76,31 @@ export const CourseFiles = ({ courseId, folderTreeReady, files, folders, uploadM
       
       try {
         const data = { name, parentId };
-        await FoldersService.createFolder(courseId, data);
+        const newlyCreatedFolder = await FoldersService.createFolder(courseId, data);
         
         // Clear the input and hide it
         setNewFolderName({ ...newFolderName, [folderKey]: '' });
         setShowNewFolderInput({ ...showNewFolderInput, [folderKey]: false });
         
-        // Refresh the folder contents
-        await fetchData();
-        toast.success('Folder created successfully');
+        if (newlyCreatedFolder) {
+          if (!parentId) { // It's a root folder
+            if (onRootFolderAddedToState) {
+              onRootFolderAddedToState(newlyCreatedFolder);
+            } else {
+              console.warn('onRootFolderAddedToState not provided, falling back to fetchData for root folder creation.');
+              await fetchData();
+            }
+          } else { // It's a sub-folder (though this UI path might not be primary for sub-folders)
+            // For sub-folders created via this CourseFiles UI (if any),
+            // FolderTree needs to be refreshed or updated. fetchData() is a broad approach.
+            // Ideally, FolderTree would handle its own sub-folder additions if triggered from its UI.
+            await fetchData(); 
+          }
+          toast.success('Folder created successfully');
+        } else {
+          toast.error('Failed to get folder details after creation.');
+          await fetchData(); // Fallback to refresh if folder data isn't returned
+        }
       } catch (err) {
         console.error('Error creating folder:', err);
         toast.error('Failed to create folder');
