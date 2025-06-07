@@ -574,19 +574,20 @@ export const QuizzesGenerationModal: React.FC<QuizzesGenerationModalProps> = ({
           
           {/* Number of questions */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1 relative">
+            <label className="text-sm font-medium text-gray-700">
               Number of Questions
-              <div className="relative group inline-block">
-                <svg className="w-4 h-4 text-blue-500 cursor-pointer" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="white"/>
-                  <path d="M12 16v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  <circle cx="12" cy="8" r="1" fill="currentColor"/>
-                </svg>
-                <div className="absolute left-1/2 z-50 -translate-x-1/2 mt-2 w-64 bg-white text-gray-800 text-xs rounded-lg shadow-lg px-4 py-2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity duration-200 border border-gray-200">
-                  If the information from the files you selected is not enough to generate the selected number of questions, a smaller number of questions will be automatically generated.
-                </div>
-              </div>
             </label>
+            {/* New structure for icon and always-visible text */}
+            <div className="flex items-start text-xs text-gray-600 mt-1 mb-2">
+              <svg className="w-4 h-4 text-blue-500 mr-1.5 flex-shrink-0 mt-[1px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/>
+                <path d="M12 16v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <circle cx="12" cy="8" r="1" fill="currentColor"/>
+              </svg>
+              <span>
+                Note: If the information from the files you selected is not enough to generate the selected number of questions, a smaller number of questions will be automatically generated.
+              </span>
+            </div>
             {remaining.quizQuestions < 5 ? (
               <div className="px-4 py-2 mb-2 text-sm text-red-800 bg-red-50 rounded-md border border-red-200">
                 You only have {remaining.quizQuestions} question{remaining.quizQuestions !== 1 ? 's' : ''} remaining. At least 5 questions are needed to generate a quiz.
