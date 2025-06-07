@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, DragEvent } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { FilesService } from '../../lib/api/files.service';
+import { FilesService, AppFile } from '../../lib/api/files.service';
 
 interface ApiError {
   response?: {
@@ -17,7 +17,7 @@ interface ApiError {
 
 interface FileUploaderProps {
   courseId: string;
-  onFileUploaded?: () => void;
+  onFileUploaded?: (newFiles: AppFile[]) => void;
   folderId?: string | null;
   isOpen?: boolean;
   onClose?: () => void;
@@ -85,7 +85,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
   };
 
   // Handle uploading a single file and update progress
-  const uploadSingleFile = async (file: File, currentIndex: number, totalFiles: number): Promise<void> => {
+  const uploadSingleFile = async (file: File, currentIndex: number, totalFiles: number): Promise<AppFile> => {
     // Update progress to show which file we're currently processing
     setUploadProgress({
       currentFileIndex: currentIndex + 1, // +1 for human-readable counting (1-based instead of 0-based)
@@ -95,11 +95,11 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
     try {
       // Determine file type and call appropriate API
       if (file.type === 'application/pdf') {
-        await FilesService.uploadPdfFile(courseId, file, currentFolderId);
+        return FilesService.uploadPdfFile(courseId, file, currentFolderId);
       } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-        await FilesService.uploadDocxFile(courseId, file, currentFolderId);
+        return FilesService.uploadDocxFile(courseId, file, currentFolderId);
       } else if (file.type === 'text/plain') {
-        await FilesService.uploadTextFile(courseId, file, currentFolderId);
+        return FilesService.uploadTextFile(courseId, file, currentFolderId);
       } else {
         throw new Error('Unsupported file type');
       }
@@ -139,11 +139,13 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
       });
       
       // Upload files sequentially to avoid overwhelming the server
+      const uploadedAppFiles: AppFile[] = [];
       for (let i = 0; i < valid.length; i++) {
-        await uploadSingleFile(valid[i], i, valid.length);
+        const newFile = await uploadSingleFile(valid[i], i, valid.length);
+        uploadedAppFiles.push(newFile);
       }
       
-      if (onFileUploaded) onFileUploaded();
+      if (onFileUploaded) onFileUploaded(uploadedAppFiles);
       handleClose(); // Close modal after successful upload
     } catch (errRaw) {
       const err = errRaw as ApiError;
@@ -168,7 +170,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
     
     try {
       console.log('Creating text content in folder:', currentFolderId); // Debug log
-      await FilesService.saveTextContent(
+      const newTextFile = await FilesService.saveTextContent(
         courseId,
         textContent.name,
         textContent.content,
@@ -181,7 +183,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
         showTextInput: false,
       });
       
-      if (onFileUploaded) onFileUploaded();
+      if (onFileUploaded) onFileUploaded([newTextFile]);
     } catch (err) {
       console.error('Error creating text content:', err);
       setError('Failed to create text content');

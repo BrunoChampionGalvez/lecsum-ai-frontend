@@ -6,7 +6,7 @@ import { useChatContext } from '@/lib/chat/ChatContext';
 import { MentionedMaterial } from '@/lib/api/chat.service';
 import { Button } from '../ui/Button';
 import { FoldersService } from '../../lib/api/folders.service';
-import { FilesService } from '../../lib/api/files.service';
+import { FilesService, AppFile } from '../../lib/api/files.service';
 import toast from 'react-hot-toast';
 
 // Skeleton loader for the FolderTree
@@ -69,6 +69,9 @@ interface FolderTreeProps {
   onFileClick: (file: APIFile) => void;
   onRefresh: () => void;
   onUploadToFolder: (folderId: string) => void;
+  onRootFolderCreated?: (newFolder: Folder) => void; // For adding new root folders
+  newlyAddedFile?: AppFile | null; // For adding a new file to a folder's content
+  onFileProcessed?: (fileId: string) => void; // Callback after processing newlyAddedFile
 }
 
 export const FolderTree: React.FC<FolderTreeProps> = ({ 
@@ -77,7 +80,10 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   files, 
   onFileClick,
   onRefresh,
-  onUploadToFolder
+  onUploadToFolder,
+  onRootFolderCreated,
+  newlyAddedFile,
+  onFileProcessed
 }) => {
   // Get chat context for Ask Lecsi functionality
   const { 
@@ -99,6 +105,48 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   const [hoverTimeouts, setHoverTimeouts] = useState<Record<string, NodeJS.Timeout>>({});
   const [isDragging, setIsDragging] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
+
+  useEffect(() => {
+    if (newlyAddedFile && newlyAddedFile.folderId) {
+      const parentFolderId = newlyAddedFile.folderId;
+
+      const apiFile: APIFile = {
+        id: newlyAddedFile.id,
+        name: newlyAddedFile.name,
+        type: newlyAddedFile.type,
+        size: newlyAddedFile.size,
+        folderId: newlyAddedFile.folderId,
+        createdAt: newlyAddedFile.createdAt,
+        updatedAt: newlyAddedFile.updatedAt,
+        url: `/uploads/${newlyAddedFile.path}` // Assuming AppFile has a 'path' property
+      };
+
+      setFolderContents(prevContents => {
+        const currentParentContents = prevContents[parentFolderId] || { folders: [], files: [] };
+        if (currentParentContents.files.some(f => f.id === apiFile.id)) {
+          return prevContents; // Avoid duplicates
+        }
+        return {
+          ...prevContents,
+          [parentFolderId]: {
+            ...currentParentContents,
+            files: [...currentParentContents.files, apiFile].sort((a, b) => a.name.localeCompare(b.name))
+          }
+        };
+      });
+
+      if (!expandedFolders[parentFolderId]) {
+        setExpandedFolders(prevExpanded => ({
+          ...prevExpanded,
+          [parentFolderId]: true
+        }));
+      }
+      
+      if (onFileProcessed) {
+        onFileProcessed(newlyAddedFile.id);
+      }
+    }
+  }, [newlyAddedFile, expandedFolders, onFileProcessed, setFolderContents, setExpandedFolders]);
 
   // Helper function to handle folder auto-expansion on hover during drag
   const handleFolderHover = (folderId: string) => {
@@ -372,25 +420,44 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
     try {
       setCreatingFolder(true);
       const data = { name, parentId };
-      await FoldersService.createFolder(courseId, data);
+      const newlyCreatedFolder = await FoldersService.createFolder(courseId, data);
       
       // Clear the input and hide it
       setNewFolderName({ ...newFolderName, [folderKey]: '' });
       setShowNewFolderInput({ ...showNewFolderInput, [folderKey]: false });
       
-      // Refresh the folder contents
-      onRefresh();
-      
-      // If we're creating a subfolder and it's parent is already expanded, refresh its contents
-      if (parentId && expandedFolders[parentId]) {
-        const folders = await FoldersService.getFolderContents(parentId);
-        setFolderContents({
-          ...folderContents,
-          [parentId]: { 
-            ...folderContents[parentId],
-            folders 
+      // Instead of onRefresh(), update state locally
+      if (newlyCreatedFolder) {
+        if (parentId) {
+          // It's a subfolder, update folderContents
+          setFolderContents(prevContents => {
+            const parentContent = prevContents[parentId] || { folders: [], files: [] };
+            // Ensure the new folder isn't already added (e.g., by a quick re-render/fetch)
+            const folderExists = parentContent.folders.some(f => f.id === newlyCreatedFolder.id);
+            if (folderExists) return prevContents;
+
+            return {
+              ...prevContents,
+              [parentId]: {
+                ...parentContent,
+                folders: [...parentContent.folders, newlyCreatedFolder].sort((a, b) => a.name.localeCompare(b.name))
+              }
+            };
+          });
+          // Ensure the parent folder is expanded to show the new subfolder
+          if (!expandedFolders[parentId]) {
+            setExpandedFolders(prevExpanded => ({ ...prevExpanded, [parentId]: true }));
           }
-        });
+        } else {
+          // It's a root folder. Call the new prop function.
+          if (onRootFolderCreated) {
+            onRootFolderCreated(newlyCreatedFolder);
+          } else {
+            // Fallback to full refresh if the prop isn't provided (should not happen with proper setup)
+            console.warn("onRootFolderCreated prop not provided to FolderTree. Falling back to onRefresh.");
+            onRefresh();
+          }
+        }
       }
       
       toast.success('Folder created successfully');

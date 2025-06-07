@@ -5,16 +5,63 @@ import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/Button";
 import { FolderTree, FolderTreeSkeleton } from "@/components/files/FolderTree";
 import { FileUploader } from "@/components/files/FileUploader";
+import { AppFile } from "../../lib/api/files.service"; // Added AppFile import
+
+export interface CourseFilesProps {
+  courseId: string;
+  folderTreeReady: boolean;
+  files: APIFile[];
+  folders: Folder[];
+  uploadModalOpen: boolean;
+  setUploadModalOpen: (open: boolean) => void;
+  fetchData: () => Promise<void>;
+  onRootFolderAddedToState?: (newFolder: Folder) => void;
+  onRootFileAddedToState?: (newFile: APIFile) => void; // Added for root file updates
+}
 
 // CourseFiles component for handling files and folders
-export const CourseFiles = ({ courseId, folderTreeReady, files, folders, uploadModalOpen, setUploadModalOpen, fetchData }: { courseId: string, folderTreeReady: boolean, files: APIFile[], folders: Folder[], uploadModalOpen: boolean, setUploadModalOpen: (open: boolean) => void, fetchData: () => Promise<void> }) => {
+export const CourseFiles = ({ courseId, folderTreeReady, files, folders, uploadModalOpen, setUploadModalOpen, fetchData, onRootFolderAddedToState, onRootFileAddedToState }: CourseFilesProps) => {
     const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+    const [lastUploadedFileToFolder, setLastUploadedFileToFolder] = useState<AppFile | null>(null);
     const [showNewFolderInput, setShowNewFolderInput] = useState<Record<string, boolean>>({});
     const [newFolderName, setNewFolderName] = useState<Record<string, string>>({});
 
-    const handleFileUploaded = async () => {
+    const handleFileUploaded = async (newlyUploadedAppFiles: AppFile[]) => {
       setUploadModalOpen(false);
-      await fetchData();
+      if (!newlyUploadedAppFiles || newlyUploadedAppFiles.length === 0) return;
+
+      newlyUploadedAppFiles.forEach(appFile => {
+        if (appFile.folderId) {
+          // File belongs to a folder, set it to be passed to FolderTree
+          setLastUploadedFileToFolder(appFile);
+        } else {
+          // File is a root file
+          if (onRootFileAddedToState) {
+            // Convert AppFile to APIFile for the root files state in page.tsx
+            const apiFile: APIFile = {
+              id: appFile.id,
+              name: appFile.name,
+              url: `/uploads/${appFile.path}`,
+              size: appFile.size,
+              type: appFile.type,
+              folderId: appFile.folderId || undefined,
+              createdAt: appFile.createdAt,
+              updatedAt: appFile.updatedAt
+            };
+            onRootFileAddedToState(apiFile);
+          } else {
+            console.warn('onRootFileAddedToState not provided to CourseFiles. Falling back to fetchData for root file.');
+            fetchData(); // Fallback
+          }
+        }
+      });
+      // Removed fetchData() call to prevent full refresh
+    };
+
+    const handleFileProcessedByTree = (fileId: string) => {
+      if (lastUploadedFileToFolder && lastUploadedFileToFolder.id === fileId) {
+        setLastUploadedFileToFolder(null); // Reset after FolderTree consumed it
+      }
     };
 
   
@@ -52,6 +99,16 @@ export const CourseFiles = ({ courseId, folderTreeReady, files, folders, uploadM
       console.log('Setting folder ID for upload:', folderId); // Debug log
       setSelectedFolderId(folderId);
       setUploadModalOpen(true);
+    };
+
+    const handleRootFolderCreated = (newFolder: Folder) => {
+      if (onRootFolderAddedToState) {
+        onRootFolderAddedToState(newFolder);
+      } else {
+        // Fallback if the prop is not provided, though it should be.
+        console.warn('onRootFolderAddedToState not provided to CourseFiles. Falling back to fetchData.');
+        fetchData();
+      }
     };
   
     // Loading is now handled by the parent component
@@ -154,6 +211,9 @@ export const CourseFiles = ({ courseId, folderTreeReady, files, folders, uploadM
               onFileClick={handleFileClick}
               onRefresh={fetchData}
               onUploadToFolder={handleUploadToFolder}
+              onRootFolderCreated={handleRootFolderCreated}
+              newlyAddedFile={lastUploadedFileToFolder} // Pass the newly uploaded file to FolderTree
+              onFileProcessed={handleFileProcessedByTree} // Callback from FolderTree after processing
             />
           )}
         </div>

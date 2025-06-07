@@ -200,6 +200,20 @@ export default function CourseDetailPage() {
     }
   }, [id]);
 
+  const handleRootFileAdded = (newlyAddedFile: APIFile) => {
+    setFiles(prevRootFiles => 
+      [...prevRootFiles, newlyAddedFile].sort((a, b) => a.name.localeCompare(b.name))
+    );
+    // Optionally, provide user feedback, though FileUploader might handle this
+    // toast.success(`File '${newlyAddedFile.name}' added to root.`); 
+  };
+
+  const handleRootFolderAdded = (newFolder: Folder) => {
+    setFolders(prevFolders => 
+      [...prevFolders, newFolder].sort((a, b) => a.name.localeCompare(b.name))
+    );
+  };
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
@@ -263,7 +277,7 @@ export default function CourseDetailPage() {
             <div className="h-4 bg-gray-200 rounded w-1/2 mb-6"></div>
             
             {/* Grid layout matching the actual course page */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="">
               {/* Main column */}
               <div className="col-span-2">
                 <div className="border rounded-lg p-6">
@@ -406,72 +420,78 @@ export default function CourseDetailPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="col-span-2">
-            <Card className="mb-6">
-              <div className="min-h-[300px]">
-                {/* Only show skeleton in parent during initial loading */}
-                {loading ? (
-                  <div className="p-4">
-                    <div className="border-b pb-3 mb-4 flex justify-between items-center">
-                      <h3 className="text-lg font-semibold text-[var(--primary)]">Course Files</h3>
-                      <div className="flex gap-2">
-                        <div className="w-28 h-8 bg-gray-200 animate-pulse rounded"></div>
-                        <div className="w-28 h-8 bg-gray-200 animate-pulse rounded"></div>
+        <div className="">
+          <div className="col-span-2 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column: Files and Folders */}
+            <div className="lg:col-span-2">
+              <Card>{/* Removed mb-6 */}
+                <div className="min-h-[300px]">
+                  {/* Only show skeleton in parent during initial loading */}
+                  {loading ? (
+                    <div className="p-4">
+                      <div className="border-b pb-3 mb-4 flex justify-between items-center">
+                        <h3 className="text-lg font-semibold text-[var(--primary)]">Course Files</h3>
+                        <div className="flex gap-2">
+                          <div className="w-28 h-8 bg-gray-200 animate-pulse rounded"></div>
+                          <div className="w-28 h-8 bg-gray-200 animate-pulse rounded"></div>
+                        </div>
                       </div>
+                      <FolderTreeSkeleton />
                     </div>
-                    <FolderTreeSkeleton />
+                  ) : (
+                    <CourseFiles
+                      key={id}
+                      courseId={id}
+                      folderTreeReady={folderTreeReady}
+                      files={files}
+                      folders={folders}
+                      uploadModalOpen={uploadModalOpen}
+                      setUploadModalOpen={setUploadModalOpen}
+                      fetchData={fetchData}
+                      onRootFolderAddedToState={handleRootFolderAdded}
+                      onRootFileAddedToState={handleRootFileAdded} // Pass the new handler
+                    />
+                  )}
+                </div>
+              </Card>
+            </div>
+
+            {/* Right Column: Generate Study Materials and Course Stats */}
+            <div className="lg:col-span-1 space-y-6">
+              <Card>{/* Removed mb-6 */}
+                <h2 className="text-lg font-semibold text-[var(--primary)] mb-4">
+                  Generate Study Materials with LecSum AI
+                </h2>
+                <div className="space-y-4">
+                  <Button className="w-full" onClick={showGenerateFlashcardsWithAiModal}>
+                    Create Flashcards
+                  </Button>
+                  <Button className="w-full" onClick={showGenerateQuizzesWithAiModal}>
+                    Create Quiz
+                  </Button>
+                </div>
+              </Card>
+
+              <Card>
+                <h2 className="text-lg font-semibold text-[var(--primary)] mb-4">
+                  Course Stats
+                </h2>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Created:</span>
+                    <span>May 19, 2025</span>
                   </div>
-                ) : (
-                  <CourseFiles 
-                    key={id} 
-                    courseId={id} 
-                    folderTreeReady={folderTreeReady} 
-                    files={files} 
-                    folders={folders} 
-                    uploadModalOpen={uploadModalOpen} 
-                    setUploadModalOpen={setUploadModalOpen} 
-                    fetchData={fetchData}
-                  />
-                )}
-              </div>
-            </Card>
-          </div>
-
-          <div>
-            <Card className="mb-6">
-              <h2 className="text-lg font-semibold text-[var(--primary)] mb-4">
-                Generate Study Materials with LecSum AI
-              </h2>
-              <div className="space-y-4">
-                <Button className="w-full" onClick={showGenerateFlashcardsWithAiModal}>
-                  Create Flashcards
-                </Button>
-                <Button className="w-full" onClick={showGenerateQuizzesWithAiModal}>
-                  Create Quiz
-                </Button>
-              </div>
-            </Card>
-
-            <Card>
-              <h2 className="text-lg font-semibold text-[var(--primary)] mb-4">
-                Course Stats
-              </h2>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Created:</span>
-                  <span>May 19, 2025</span>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Flashcards:</span>
+                    <Badge variant="primary">0</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Quizzes:</span>
+                    <Badge variant="orange">0</Badge>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Flashcards:</span>
-                  <Badge variant="primary">0</Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Quizzes:</span>
-                  <Badge variant="orange">0</Badge>
-                </div>
-              </div>
-            </Card>
+              </Card>
+            </div>
           </div>
         </div>
         {/* Quizzes Generation Modal */}
