@@ -21,7 +21,7 @@ import { CourseFiles } from '../../../components/courses/CourseFiles';
 import { useChatContext } from '@/lib/chat/ChatContext';
 import { AxiosError } from 'axios';
 import { MentionedMaterial } from '@/lib/api/chat.service';
-import { FilesService } from '@/lib/api';
+import { FilesService, PaginationOptions } from '@/lib/api';
 import { FoldersService } from '@/lib/api/folders.service';
 
 export default function CourseDetailPage() {
@@ -158,11 +158,13 @@ export default function CourseDetailPage() {
     setLoading(true);
     setFolderTreeReady(false);
     try {
-      // Fetch all files for this course
-      const filesData = await FilesService.getFilesByCourse(id);
+      // Fetch all files for this course with pagination
+      const paginationOptions: PaginationOptions = { page: 1, limit: 50 };
+      const filesData = await FilesService.getFilesByCourse(id, paginationOptions);
+      
       // Convert AppFile to APIFile while preserving the original folderId
       // Convert null to undefined to match the APIFile type
-      const apiFiles = filesData.map(file => ({
+      const apiFiles = filesData.files.map(file => ({
         id: file.id,
         name: file.name,
         url: `/uploads/${file.path}`,
@@ -173,6 +175,7 @@ export default function CourseDetailPage() {
         updatedAt: file.updatedAt
       }));
       setFiles(apiFiles);
+      console.log(`Loaded ${apiFiles.length} of ${filesData.total} files for course ${id}`);
       
       // Fetch all root folders for this course
       const foldersData = await FoldersService.getFoldersByCourseid(id);

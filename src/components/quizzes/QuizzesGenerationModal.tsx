@@ -15,7 +15,7 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { CoursesService, Course } from '../../lib/api/courses.service';
 import { FoldersService } from '../../lib/api/folders.service';
-import { FilesService } from '../../lib/api/files.service';
+import { FilesService, PaginationOptions, AppFile } from '../../lib/api/files.service';
 import { Folder, APIFile } from '../../lib/api/types';
 import { toast } from 'react-hot-toast';
 import { useSubscriptionLimits } from '../../hooks/useSubscriptionLimits';
@@ -206,10 +206,11 @@ export const QuizzesGenerationModal: React.FC<QuizzesGenerationModalProps> = ({
       const foldersData = await FoldersService.getFoldersByCourseid(courseId);
       setFolders(foldersData);
       
-      // Fetch files for this course
-      const filesData = await FilesService.getFilesByCourse(courseId);
+      // Fetch files for this course with pagination
+      const paginationOptions: PaginationOptions = { page: 1, limit: 50 };
+      const filesData = await FilesService.getFilesByCourse(courseId, paginationOptions);
       // Convert AppFile to APIFile
-      const apiFiles = filesData.map(file => ({
+      const apiFiles = filesData.files.map((file: AppFile) => ({
         id: file.id,
         name: file.name,
         url: `/uploads/${file.path}`,
@@ -252,13 +253,15 @@ export const QuizzesGenerationModal: React.FC<QuizzesGenerationModalProps> = ({
     // If we're expanding and don't have contents yet, fetch them
     if (!expandedFolders[folderId] && !folderContents[folderId]) {
       try {
-        // Fetch subfolders
-        const subfolders = await FoldersService.getFolderContents(folderId);
+        // Fetch subfolders with pagination
+        const paginationOptions: PaginationOptions = { page: 1, limit: 50 };
+        const subfoldersResponse = await FoldersService.getFolderContents(folderId, paginationOptions);
+        const subfolders = subfoldersResponse.folders;
         
-        // Fetch files in this folder
-        const folderFiles = await FilesService.getFilesByFolder(folderId);
+        // Fetch files in this folder with pagination
+        const folderFilesResponse = await FilesService.getFilesByFolder(folderId, paginationOptions);
         // Convert to APIFile format
-        const apiFiles = folderFiles.map(file => ({
+        const apiFiles = folderFilesResponse.files.map((file: AppFile) => ({
           id: file.id,
           name: file.name,
           url: `/uploads/${file.path}`,
