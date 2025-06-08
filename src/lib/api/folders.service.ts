@@ -6,6 +6,16 @@ export interface CreateFolderData {
   parentId?: string;
 }
 
+export interface PaginationOptions {
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedFolderResponse {
+  folders: Folder[];
+  total: number;
+}
+
 export class FoldersService {
   static async getFoldersByCourseid(courseId: string): Promise<Folder[]> {
     // Add a timestamp to prevent browser caching
@@ -16,10 +26,13 @@ export class FoldersService {
     return folders;
   }
 
-  static async getFolderContents(folderId: string): Promise<Folder[]> {
+  static async getFolderContents(folderId: string, options?: PaginationOptions): Promise<PaginatedFolderResponse> {
     // Add a timestamp to prevent browser caching (304 Not Modified responses)
     const timestamp = new Date().getTime();
-    return apiClient.get<Folder[]>(`/folders/${folderId}/contents?t=${timestamp}`);
+    const page = options?.page || 1;
+    const limit = options?.limit || 20;
+    
+    return apiClient.get<PaginatedFolderResponse>(`/folders/${folderId}/contents?page=${page}&limit=${limit}&t=${timestamp}`);
   }
 
   static async createFolder(courseId: string, data: CreateFolderData): Promise<Folder> {

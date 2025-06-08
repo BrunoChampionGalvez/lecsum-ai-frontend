@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Folder, APIFile } from '../../lib/api/types';
+import { PaginationOptions, PaginatedFilesResponse } from '../../lib/api/files.service';
+import { PaginatedFolderResponse } from '../../lib/api/folders.service';
 import { useChatContext } from '@/lib/chat/ChatContext';
 import { MentionedMaterial } from '@/lib/api/chat.service';
 import { Button } from '../ui/Button';
@@ -85,6 +87,17 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   newlyAddedFile,
   onFileProcessed
 }) => {
+  // Define type for cached folder contents result
+  interface FolderContentsCache {
+    folders: Folder[];
+    files: APIFile[];
+    totalFolders: number;
+    totalFiles: number;
+  }
+
+  // API call cache to prevent redundant requests
+  const apiCache = useRef<Record<string, { data: FolderContentsCache; timestamp: number }>>({});
+  const CACHE_TTL_MS = 10000; // 10 seconds cache TTL
   // Get chat context for Ask Lecsi functionality
   const { 
     addMaterialToChat, 
@@ -248,15 +261,16 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
             // Force a direct fetch of folder content after a short delay
             setTimeout(async () => {
               try {
-                // Directly fetch fresh data from APIs
-                const freshFolders = await FoldersService.getFolderContents(targetFolderId);
+                // Directly fetch fresh data from APIs with pagination
+                const paginationOptions: PaginationOptions = { page: 1, limit: 50 };
+                const freshFolders = await FoldersService.getFolderContents(targetFolderId, paginationOptions);
                 
                 // Get files directly from the folder instead of filtering from all course files
                 // This is critical because the backend only returns files with no folder ID in getFilesByCourse
-                const folderFilesData = await FilesService.getFilesByFolder(targetFolderId);
+                const folderFilesData = await FilesService.getFilesByFolder(targetFolderId, paginationOptions);
                 
                 // Convert AppFile from the service to APIFile format
-                const folderFiles = folderFilesData.map(file => ({
+                const folderFiles = folderFilesData.files.map((file: AppFile) => ({
                   id: file.id,
                   name: file.name,
                   type: file.type,
@@ -267,13 +281,13 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
                   url: file.path // Use path as URL for compatibility
                 } as APIFile));
                 
-                console.log(`Direct refresh after move: found ${folderFiles.length} files in folder ${targetFolderId}`);
+                console.log(`Direct refresh after move: found ${folderFiles.length} files (of ${folderFilesData.total} total) in folder ${targetFolderId}`);
                 
                 // Directly update folder contents with fresh API data
                 setFolderContents(prev => ({
                   ...prev,
                   [targetFolderId]: {
-                    folders: freshFolders.filter(folder => folder.parentId === targetFolderId),
+                    folders: freshFolders.folders.filter(folder => folder.parentId === targetFolderId),
                     files: folderFiles // Now properly typed as APIFile[]
                   }
                 }));
@@ -376,6 +390,62 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
     }
   };
 
+  // Create a debounced version of our fetch functions to prevent API hammering
+  const debouncedFetch = useCallback(async (folderId: string) => {
+    const cacheKey = `folder_${folderId}_contents`;
+    const now = Date.now();
+    
+    // Check if we have a valid cache entry
+    if (apiCache.current[cacheKey] && 
+        now - apiCache.current[cacheKey].timestamp < CACHE_TTL_MS) {
+      console.log(`Using cached data for folder ${folderId}`);
+      return apiCache.current[cacheKey].data;
+    }
+    
+    console.log(`Fetching fresh data for folder ${folderId}`);
+    try {
+      const paginationOptions: PaginationOptions = { page: 1, limit: 50 };
+      
+      // Use pagination for both API calls - limit to reasonable amounts
+      const foldersResponse: PaginatedFolderResponse = await FoldersService.getFolderContents(folderId, paginationOptions);
+      const filesResponse: PaginatedFilesResponse = await FilesService.getFilesByFolder(folderId, paginationOptions);
+      
+      // Process folder contents
+      const folders = foldersResponse.folders;
+      
+      // Convert AppFile from the service to APIFile format
+      const apiFiles = filesResponse.files.map((file: AppFile) => ({
+        id: file.id,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        folderId: file.folderId,
+        createdAt: file.createdAt,
+        updatedAt: file.updatedAt,
+        url: file.path // Use path as URL for compatibility
+      } as APIFile));
+      
+      // Store combined result in cache
+      const result = { 
+        folders: folders.filter(folder => folder.parentId === folderId),
+        files: apiFiles,
+        totalFolders: foldersResponse.total,
+        totalFiles: filesResponse.total
+      };
+      
+      // Update the cache
+      apiCache.current[cacheKey] = {
+        data: result,
+        timestamp: now
+      };
+      
+      return result;
+    } catch (error) {
+      console.error('Error in debouncedFetch:', error);
+      throw error;
+    }
+  }, []);
+
   const toggleFolder = async (folderId: string) => {
     if (loading[folderId]) return;
     
@@ -388,33 +458,20 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
       try {
         setLoading({ ...loading, [folderId]: true });
         
-        // Fetch folders from the server
-        const folders = await FoldersService.getFolderContents(folderId);
+        // Use our cached/debounced fetch function
+        const folderData = await debouncedFetch(folderId);
         
-        // IMPORTANT CHANGE: Get files directly from the folder instead of filtering from parent props
-        // This is critical because the backend's getFilesByCourse only returns files with no folder
-        const folderFilesData = await FilesService.getFilesByFolder(folderId);
+        console.log(`Folder ${folderId} contents: ${folderData.files.length} files, ${folderData.folders.length} subfolders`);
+        if (folderData.totalFiles > folderData.files.length || folderData.totalFolders > folderData.folders.length) {
+          console.log(`Note: Some items were paginated. Total: ${folderData.totalFiles} files, ${folderData.totalFolders} folders`);
+        }
         
-        // Convert AppFile from the service to APIFile format
-        const folderFiles = folderFilesData.map(file => ({
-          id: file.id,
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          folderId: file.folderId,
-          createdAt: file.createdAt,
-          updatedAt: file.updatedAt,
-          url: file.path // Use path as URL for compatibility
-        } as APIFile)); // Explicitly cast to APIFile to ensure type compatibility
-        
-        console.log(`Refreshing folder ${folderId} contents, found ${folderFiles.length} files`);
-        
-        // Update the folder contents with fresh data directly from the API
+        // Update the folder contents with fetched data
         setFolderContents({
           ...folderContents,
           [folderId]: { 
-            folders: folders.filter(folder => folder.parentId === folderId),
-            files: folderFiles
+            folders: folderData.folders,
+            files: folderData.files
           }
         });
       } catch (error) {
