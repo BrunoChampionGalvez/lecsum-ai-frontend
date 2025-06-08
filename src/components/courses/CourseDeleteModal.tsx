@@ -4,7 +4,7 @@ import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { DecksService, Deck } from "../../lib/api/decks.service";
 import { QuizzesService, Quiz } from "../../lib/api/quizzes.service";
-import { FilesService, AppFile } from "../../lib/api/files.service";
+import { FilesService, AppFile, PaginationOptions } from '../../lib/api/files.service';
 import { FoldersService } from "../../lib/api/folders.service";
 import { Folder } from "../../lib/api/types";
 
@@ -63,8 +63,10 @@ export const CourseDeleteModal: React.FC<CourseDeleteModalProps> = ({
         
         // Get files - this is where we had issues
         console.log(`Fetching files for course ID: ${courseId}`);
-        const files = await FilesService.getFilesByCourse(courseId);
-        console.log(`Retrieved ${files.length} files:`, files);
+        const paginationOptions: PaginationOptions = { page: 1, limit: 100 };
+        const filesResponse = await FilesService.getFilesByCourse(courseId, paginationOptions);
+        const files = filesResponse.files;
+        console.log(`Retrieved ${files.length} files out of ${filesResponse.total} total:`, files);
         
         // Get folders
         const folders = await FoldersService.getFoldersByCourseid(courseId);
@@ -73,7 +75,7 @@ export const CourseDeleteModal: React.FC<CourseDeleteModalProps> = ({
         // Update state with the retrieved data
         setQuizzes(quizzes);
         setDecks(courseDecks);
-        setFiles(files);
+        setFiles(files); // files is already extracted from filesResponse.files
         setFolders(folders);
         setInitialCanDeleteCourse(quizzes.length === 0 && decks.length === 0 && files.length === 0 && folders.length === 0);
       } catch (err) {
@@ -115,13 +117,15 @@ export const CourseDeleteModal: React.FC<CourseDeleteModalProps> = ({
           await FoldersService.deleteFolder(itemToDelete.id);
           
           // Get files - this is where we had issues
-          const files = await FilesService.getFilesByCourse(courseId);
+          const paginationOptions: PaginationOptions = { page: 1, limit: 100 };
+          const filesResponse = await FilesService.getFilesByCourse(courseId, paginationOptions);
+          const files = filesResponse.files;
           
           // Get folders
           const folders = await FoldersService.getFoldersByCourseid(courseId);
           
           // Update state with the retrieved data
-          setFiles(files);
+          setFiles(files); // files is already extracted from filesResponse.files
           setFolders(folders);
           break;
       }
