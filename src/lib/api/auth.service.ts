@@ -79,33 +79,62 @@ export const AuthService = {
   
   async register(registerData: RegisterData): Promise<AuthResponse> {
     try {
-      console.log('Sending registration request...');
-      
-      // IMPORTANT: apiClient.post already returns the response.data
-      // No need to do response.data again
-      const authResponse = await apiClient.post<AuthResponse>('/auth/register', registerData);
-      console.log('Registration response data:', authResponse);
-      
-      // Validate response format
-      if (!authResponse || !authResponse.accessToken || !authResponse.user) {
-        console.error('Invalid response format from registration API', authResponse);
-        throw new Error('Invalid registration response format');
-      }
-      
-      // Clear any existing tokens first
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      
-      // Store token and user data in localStorage
-      localStorage.setItem('token', authResponse.accessToken);
-      localStorage.setItem('user', JSON.stringify(authResponse.user));
-      
-      console.log('Registration successful, token stored:', { 
-        hasToken: true,
-        tokenLength: authResponse.accessToken.length
+      console.log('Sending registration request...', { 
+        url: '/auth/register',
+        baseURL: apiClient['client'].defaults.baseURL,
+        data: { ...registerData, password: '[REDACTED]' } 
       });
       
-      return authResponse;
+      // Enhanced debugging for the raw request
+      try {
+        // Make a raw axios request to see full details
+        const response = await apiClient['client'].request({
+          method: 'post',
+          url: '/auth/register',
+          data: registerData
+        });
+        
+        console.log('Raw registration response:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+          data: response.data
+        });
+        
+        const authResponse = response.data;
+        
+        // Validate response format
+        if (!authResponse || !authResponse.accessToken || !authResponse.user) {
+          console.error('Invalid response format from registration API', authResponse);
+          throw new Error('Invalid registration response format');
+        }
+        
+        // Clear any existing tokens first
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        // Store token and user data in localStorage
+        localStorage.setItem('token', authResponse.accessToken);
+        localStorage.setItem('user', JSON.stringify(authResponse.user));
+        
+        console.log('Registration successful, token stored:', { 
+          hasToken: true,
+          tokenLength: authResponse.accessToken.length
+        });
+        
+        return authResponse;
+      } catch (axiosError: any) {
+        console.error('Axios raw error during registration:', {
+          message: axiosError.message,
+          status: axiosError.response?.status,
+          statusText: axiosError.response?.statusText,
+          responseData: axiosError.response?.data,
+          requestURL: axiosError.config?.url,
+          requestMethod: axiosError.config?.method,
+          requestHeaders: axiosError.config?.headers
+        });
+        throw axiosError;
+      }
     } catch (errorRaw) {
       const error = errorRaw as ApiError;
       console.error('Registration error:', error);

@@ -291,7 +291,7 @@ export function FlashcardsList() {
           <div className="py-10 text-center text-red-500">
             <p>{error}</p>
             <Button 
-              variant="secondary" 
+              variant="orange" 
               className="mt-4" 
               onClick={() => window.location.reload()}
             >

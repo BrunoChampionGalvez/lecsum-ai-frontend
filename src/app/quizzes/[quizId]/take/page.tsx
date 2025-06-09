@@ -29,6 +29,23 @@ export default function TakeQuizPage({ params }: { params: Promise<{ quizId: str
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  // Memoized shuffled choices for current question
+  const shuffledChoices = React.useMemo(() => {
+    if (!quiz?.questions || current >= quiz.questions.length) return [];
+    
+    const q = quiz.questions[current];
+    const choices = Array.isArray(q.options) ? [...q.options] : [];
+    if (!choices.includes(q.correctAnswer)) {
+      choices.push(q.correctAnswer);
+    }
+    // Shuffle choices for fairness - but only when current question changes
+    for (let i = choices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [choices[i], choices[j]] = [choices[j], choices[i]];
+    }
+    return choices;
+  }, [current, quiz?.questions]);
+
   React.useEffect(() => {
     async function fetchQuiz() {
       setLoading(true);
@@ -242,29 +259,16 @@ Choices:
               </Button>
               <div className="mb-4 text-gray-700">{quiz.questions[current].question}</div>
               <div className="flex flex-col gap-2">
-                {(() => {
-                  // Ensure the correct answer is present and shuffle options
-                  const q = quiz.questions[current];
-                  const choices = Array.isArray(q.options) ? [...q.options] : [];
-                  if (!choices.includes(q.correctAnswer)) {
-                    choices.push(q.correctAnswer);
-                  }
-                  // Shuffle choices for fairness
-                  for (let i = choices.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [choices[i], choices[j]] = [choices[j], choices[i]];
-                  }
-                  return choices.map((choice: string) => (
-                    <Button
-                      key={choice}
-                      variant={selected === choice ? "primary" : "white-outline"}
-                      className="w-full"
-                      onClick={() => handleSelect(choice)}
-                    >
-                      {choice}
-                    </Button>
-                  ));
-                })()}
+                {shuffledChoices.map((choice: string) => (
+                  <Button
+                    key={`${choice}-${current}`} // Add current to ensure unique keys across questions
+                    variant={selected === choice ? "primary" : "white-outline"}
+                    className="w-full"
+                    onClick={() => handleSelect(choice)}
+                  >
+                    {choice}
+                  </Button>
+                ))}
               </div>
             </div>
             <div className="flex gap-2 mt-6">

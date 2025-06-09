@@ -130,7 +130,7 @@ Back: ${currentCard.back}
   const percentCorrect = flashcards.length > 0 ? (correctCount / flashcards.length) * 100 : 0;
 
   React.useEffect(() => {
-    if (!confettiShown && percentCorrect >= 90) {
+    if (!confettiShown && percentCorrect >= 85) {
       confetti({
         particleCount: 120,
         spread: 90,
@@ -140,7 +140,7 @@ Back: ${currentCard.back}
       });
       setConfettiShown(true);
     }
-    if (percentCorrect < 90 && confettiShown) {
+    if (percentCorrect < 85 && confettiShown) {
       setConfettiShown(false);
     }
   }, [percentCorrect, confettiShown]);

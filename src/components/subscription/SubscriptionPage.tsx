@@ -156,7 +156,7 @@ export const SubscriptionPage: React.FC = () => {
                 <p className="text-red-500">{error}</p>
                 <button 
                   onClick={() => window.location.reload()} 
-                  className="mt-4 px-4 py-2 bg-[var(--primary)] text-white rounded-md hover:bg-opacity-90 transition-all cursor-pointer">
+                  className="mt-4 px-4 py-2 bg-[var(--orange)] text-white rounded-md hover:bg-opacity-90 transition-all cursor-pointer">
                   Try Again
                 </button>
               </div>

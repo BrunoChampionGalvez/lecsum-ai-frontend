@@ -90,7 +90,7 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-semibold text-[var(--primary)] mb-3">Custom Quizzes</h3>
+                <h3 className="text-xl font-semibold text-[var(--primary)] mb-3">AI-Generated Quizzes</h3>
                 <p className="text-[var(--foreground)]">
                   Test your knowledge with AI-generated quizzes based on your course materials.
                 </p>
@@ -102,7 +102,7 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-semibold text-[var(--primary)] mb-3">AI Chat Assistant</h3>
+                <h3 className="text-xl font-semibold text-[var(--primary)] mb-3">AI Chat Assistant - Lecsi 👩🏻‍🦰</h3>
                 <p className="text-[var(--foreground)]">
                   Ask questions about your materials and get instant, contextual answers from our AI.
                 </p>
