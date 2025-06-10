@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { AxiosError } from 'axios';
 
 interface ApiError {
   response?: {
@@ -123,7 +124,8 @@ export const AuthService = {
         });
         
         return authResponse;
-      } catch (axiosError: any) {
+      } catch (error) {
+        const axiosError = error as AxiosError;
         console.error('Axios raw error during registration:', {
           message: axiosError.message,
           status: axiosError.response?.status,
