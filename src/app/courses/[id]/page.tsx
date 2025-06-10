@@ -463,7 +463,7 @@ export default function CourseDetailPage() {
             <div className="lg:col-span-1 space-y-6">
               <Card>{/* Removed mb-6 */}
                 <h2 className="text-lg font-semibold text-[var(--primary)] mb-4">
-                  Generate Study Materials with LecSum AI
+                  Generate Study Materials with AI
                 </h2>
                 <div className="space-y-4">
                   <Button className="w-full" onClick={showGenerateFlashcardsWithAiModal}>
