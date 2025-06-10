@@ -5,12 +5,15 @@ import { MainLayout } from '../../components/ui/MainLayout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
+import { useChatContext } from '../../lib/chat/ChatContext';
 
 // Metadata must be in a server component
 // For client components, we can set title directly
 
 // This is a client component to handle authentication
 export default function DashboardPage() {
+  const { setIsSidebarOpen } = useChatContext();
+  
   return (
     <ProtectedRoute>
       <MainLayout>
@@ -87,11 +90,9 @@ export default function DashboardPage() {
             </div>
             <p className="text-gray-600 mb-4">
               Ask questions about your study materials and get instant answers from our
-              AI assistant. Create multiple chat sessions for different topics.
+              AI assistant, Lecsi. Create multiple chat sessions for different topics.
             </p>
-            <Link href="/chat">
-              <Button>Start Chatting</Button>
-            </Link>
+            <Button variant='primary' onClick={() => setIsSidebarOpen(true)}>Start Chatting</Button>
           </Card>
 
           <Card>

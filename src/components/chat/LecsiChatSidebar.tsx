@@ -132,15 +132,8 @@ export const LecsiChatSidebar: React.FC = () => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const payload: { name?: string; contextFileIds?: string[] } = {};
+      const payload: { contextFileIds?: string[] } = {};
       const materialsToUse = initialMaterials || [];
-
-      if (materialsToUse.length > 0) {
-        payload.name = `Chat with ${materialsToUse.map(m => m.displayName).join(', ')}`;
-        payload.contextFileIds = materialsToUse.map(m => m.id);
-      } else {
-        payload.name = "New Chat"; // Default name
-      }
 
       const response = await apiClient.post('/chat/sessions', payload);
       const newSession = response as ChatSession;
@@ -1366,7 +1359,10 @@ export const LecsiChatSidebar: React.FC = () => {
                     </svg>
                   </button>
                   <button 
-                    onClick={() => setShowSessionsHistory(!showSessionsHistory)}
+                    onClick={() => {
+                      setShowSessionsHistory(!showSessionsHistory);
+                      loadChatSessions();
+                    }}
                     className="p-1 hover:bg-[var(--primary-dark)] rounded transition-colors" 
                     title="Chat History"
                     aria-label="View chat history"

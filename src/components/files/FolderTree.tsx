@@ -10,6 +10,7 @@ import { Button } from '../ui/Button';
 import { FoldersService } from '../../lib/api/folders.service';
 import { FilesService, AppFile } from '../../lib/api/files.service';
 import toast from 'react-hot-toast';
+import Modal from '../ui/Modal';
 
 // Skeleton loader for the FolderTree
 export const FolderTreeSkeleton: React.FC = () => {
@@ -118,6 +119,12 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   const [hoverTimeouts, setHoverTimeouts] = useState<Record<string, NodeJS.Timeout>>({});
   const [isDragging, setIsDragging] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  
+  // Modal states
+  const [showFileDeleteModal, setShowFileDeleteModal] = useState(false);
+  const [showFolderDeleteModal, setShowFolderDeleteModal] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string>('');
 
   // Function to handle showing the new subfolder input and expanding the parent
   const handleShowNewSubfolderInput = async (folderId: string) => {
@@ -483,6 +490,112 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
     }
   };
 
+  // Show delete file modal
+  const showDeleteFileModal = (fileId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent file click action
+    setItemToDelete(fileId);
+    setShowFileDeleteModal(true);
+  };
+
+  // Show delete folder modal
+  const showDeleteFolderModal = (folderId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent folder expansion
+    setItemToDelete(folderId);
+    setShowFolderDeleteModal(true);
+  };
+
+  // Handle deleting a file
+  const handleDeleteFile = async () => {
+    const fileId = itemToDelete;
+    try {
+      setDeleting(true);
+      await FilesService.deleteFile(fileId);
+      
+      // Update local state
+      // Find which folder this file belongs to
+      const folderId = Object.keys(folderContents).find(key => 
+        folderContents[key]?.files?.some(file => file.id === fileId)
+      );
+
+      if (folderId) {
+        // Remove file from folder contents
+        setFolderContents(prev => ({
+          ...prev,
+          [folderId]: {
+            ...prev[folderId],
+            files: prev[folderId].files.filter(file => file.id !== fileId)
+          }
+        }));
+      } else {
+        // This is a root-level file, so trigger refresh
+        onRefresh();
+      }
+      
+      toast.success('File deleted successfully');
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      toast.error('Failed to delete file');
+    } finally {
+      setDeleting(false);
+      setShowFileDeleteModal(false);
+    }
+  };
+
+  // Handle deleting a folder
+  const handleDeleteFolder = async () => {
+    const folderId = itemToDelete;
+    try {
+      setDeleting(true);
+      await FoldersService.deleteFolder(folderId);
+      
+      // Update local state
+      // Check if it's a root folder
+      const isRootFolder = rootFolders.some(folder => folder.id === folderId);
+      
+      if (isRootFolder) {
+        // Let parent component handle refresh for root folders
+        onRefresh();
+      } else {
+        // Find parent folder to update its contents
+        const parentFolderId = Object.keys(folderContents).find(key => 
+          folderContents[key]?.folders?.some(folder => folder.id === folderId)
+        );
+
+        if (parentFolderId) {
+          // Remove folder from parent contents
+          setFolderContents(prev => ({
+            ...prev,
+            [parentFolderId]: {
+              ...prev[parentFolderId],
+              folders: prev[parentFolderId].folders.filter(folder => folder.id !== folderId)
+            }
+          }));
+        }
+      }
+      
+      // Also remove the folder from expandedFolders and its contents from folderContents
+      setExpandedFolders(prev => {
+        const updated = { ...prev };
+        delete updated[folderId];
+        return updated;
+      });
+      
+      setFolderContents(prev => {
+        const updated = { ...prev };
+        delete updated[folderId];
+        return updated;
+      });
+      
+      toast.success('Folder deleted successfully');
+    } catch (error) {
+      console.error('Error deleting folder:', error);
+      toast.error('Failed to delete folder');
+    } finally {
+      setDeleting(false);
+      setShowFolderDeleteModal(false);
+    }
+  };
+
   const handleCreateFolder = async (parentId?: string) => {
     const folderKey = parentId || 'root';
     const name = newFolderName[folderKey]?.trim();
@@ -619,7 +732,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
       <div key={folder.id} className="flex flex-col">
         <div className="relative group">
           <div 
-            className={`flex items-center cursor-pointer py-2 px-3 rounded-lg border ${isDropTarget ? 'border-[var(--primary)] bg-blue-50' : 'border-gray-200 bg-white'} shadow-sm w-[300px] h-[50px] transition-all duration-150 transform ${!isDraggingThis && 'hover:scale-105 hover:shadow-md'} ${isDraggingThis ? 'opacity-50' : ''} group/folder`}
+            className={`flex items-center cursor-pointer py-2 px-3 rounded-lg border ${isDropTarget ? 'border-[var(--primary)] bg-blue-50' : 'border-gray-200 bg-white'} shadow-sm w-[350px] h-[50px] transition-all duration-150 transform ${!isDraggingThis && 'hover:scale-105 hover:shadow-md'} ${isDraggingThis ? 'opacity-50' : ''} group/folder`}
             onClick={() => toggleFolder(folder.id)}
             title={folder.name}
             draggable={true}
@@ -703,7 +816,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
             </div>
             
             {/* Other folder action buttons */}
-            <div className="flex-shrink-0 flex items-center space-x-1 opacity-0 group-hover/folder:opacity-100 transition-opacity duration-200">
+              <div className="flex-shrink-0 flex items-center space-x-1 opacity-0 group-hover/folder:opacity-100 transition-opacity duration-200">
               {/* Create subfolder button */}
               <button 
                 className="p-1 text-gray-500 hover:text-[var(--primary)] hover:bg-gray-100 rounded-full"
@@ -733,6 +846,22 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="17 8 12 3 7 8"></polyline>
                   <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+              </button>
+
+              {/* Delete folder button */}
+              <button 
+                className="p-1 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-full"
+                onClick={(e) => showDeleteFolderModal(folder.id, e)}
+                title="Delete Folder"
+                disabled={deleting}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18"></path>
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                  <line x1="14" y1="11" x2="14" y2="17"></line>
                 </svg>
               </button>
 
@@ -797,7 +926,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
     return (
       <div 
         key={file.id} 
-        className={`flex items-center py-2 px-3 cursor-pointer rounded-lg border border-gray-200 shadow-sm bg-white w-[300px] h-[50px] transition-all duration-150 transform ${!isDraggingThis && 'hover:scale-105 hover:shadow-md'} ${isDraggingThis ? 'opacity-50' : ''} group/file`}
+        className={`flex items-center py-2 px-3 cursor-pointer rounded-lg border border-gray-200 shadow-sm bg-white w-[350px] h-[50px] transition-all duration-150 transform ${!isDraggingThis && 'hover:scale-105 hover:shadow-md'} ${isDraggingThis ? 'opacity-50' : ''} group/file`}
         onClick={() => onFileClick(file)}
         title={file.name}
         draggable={true}
@@ -828,8 +957,24 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
           <div className="flex-1 overflow-hidden transition-[width] duration-0">
             <span className="text-sm font-medium truncate block w-full">{file.name}</span>
           </div>
-          {/* Button container with fixed position */}
-          <div className="flex-shrink-0 w-[120px] text-right opacity-0 group-hover/file:opacity-100 transition-opacity duration-200 pointer-events-none group-hover/file:pointer-events-auto">
+          {/* Button container with actions */}
+          <div className="flex-shrink-0 flex items-center space-x-2 opacity-0 group-hover/file:opacity-100 transition-opacity duration-200 pointer-events-none group-hover/file:pointer-events-auto">
+            {/* Delete file button */}
+            <button
+              className="p-1 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-full"
+              onClick={(e) => showDeleteFileModal(file.id, e)}
+              title="Delete File"
+              disabled={deleting}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18"></path>
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                <line x1="10" y1="11" x2="10" y2="17"></line>
+                <line x1="14" y1="11" x2="14" y2="17"></line>
+              </svg>
+            </button>
+            
             <Button 
               variant="white-outline" 
               size="sm"
@@ -846,6 +991,62 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
 
   return (
     <div className="w-full">
+      {/* File Delete Confirmation Modal */}
+      <Modal
+        isOpen={showFileDeleteModal}
+        onClose={() => setShowFileDeleteModal(false)}
+        title="Delete File"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setShowFileDeleteModal(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleDeleteFile}
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-gray-700">Are you sure you want to delete this file?</p>
+        <p className="text-gray-500 text-sm mt-2">This action cannot be undone.</p>
+      </Modal>
+
+      {/* Folder Delete Confirmation Modal */}
+      <Modal
+        isOpen={showFolderDeleteModal}
+        onClose={() => setShowFolderDeleteModal(false)}
+        title="Delete Folder"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setShowFolderDeleteModal(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleDeleteFolder}
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-gray-700">Are you sure you want to delete this folder?</p>
+        <p className="text-gray-700 font-semibold">All files and subfolders inside will also be deleted.</p>
+        <p className="text-gray-500 text-sm mt-2">This action cannot be undone.</p>
+      </Modal>
       
       {/* Display folders and files in a vertical layout with drop zone for root level */}
       <div 

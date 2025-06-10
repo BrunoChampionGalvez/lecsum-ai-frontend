@@ -424,9 +424,9 @@ export default function CourseDetailPage() {
         )}
 
         <div className="">
-          <div className="col-span-2 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="col-span-2 grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Left Column: Files and Folders */}
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-3">
               <Card>{/* Removed mb-6 */}
                 <div className="min-h-[300px]">
                   {/* Only show skeleton in parent during initial loading */}
