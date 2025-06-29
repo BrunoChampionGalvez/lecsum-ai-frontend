@@ -8,13 +8,28 @@ interface StudyFlipCardProps {
   onFlip: () => void;
   handleMark: (gotItRight: boolean) => void;
   handleAskLecsi: () => void;
+  currentFeedback?: 'correct' | 'incorrect' | null;
 }
 
-export const StudyFlipCard: React.FC<StudyFlipCardProps> = ({ flipped, front, back, onFlip, handleMark, handleAskLecsi }) => {
+export const StudyFlipCard: React.FC<StudyFlipCardProps> = ({ 
+  flipped, 
+  front, 
+  back, 
+  onFlip, 
+  handleMark, 
+  handleAskLecsi,
+  currentFeedback 
+}) => {
+  // Define feedback styles
+  const feedbackClasses = {
+    correct: '!bg-green-200 !border-green-500 transition-colors duration-300',
+    incorrect: '!bg-red-200 !border-red-500 transition-colors duration-300',
+  };
+  
   return (
     <div className="relative flex justify-center" style={{width: '100%', maxWidth: 600, margin: '0 auto 2rem auto'}}>
       <div 
-        className="study-flip-container cursor-pointer bg-white rounded-lg shadow-md"
+        className={`study-flip-container cursor-pointer bg-white rounded-lg shadow-md ${currentFeedback === 'incorrect' ? 'shake-animation' : ''}`}
         onClick={onFlip}
         tabIndex={0}
         role="button"
@@ -28,7 +43,9 @@ export const StudyFlipCard: React.FC<StudyFlipCardProps> = ({ flipped, front, ba
         >
           {/* Front face */}
           <div 
-            className="absolute w-full h-full rounded-lg flex flex-col bg-white shadow-md"
+            className={`absolute w-full h-full rounded-lg flex flex-col bg-white shadow-md ${
+              currentFeedback ? (currentFeedback === 'correct' ? feedbackClasses.correct : feedbackClasses.incorrect) : ''
+            }`}
             style={{backfaceVisibility: 'hidden', zIndex: flipped ? 0 : 1}}
           >
             {/* Main content area - takes all available space minus footer */}
@@ -50,13 +67,27 @@ export const StudyFlipCard: React.FC<StudyFlipCardProps> = ({ flipped, front, ba
                 </div>
               </div>
             </div>
+
+            {/* Feedback icons with fixed animation class */}
+            {currentFeedback && (
+              <div className="absolute bottom-5 right-5 text-4xl">
+                {currentFeedback === 'correct' ? (
+                  <span className="text-green-600 checkmark-zoom-animation">✓</span>
+                ) : (
+                  <span className="text-red-600">✗</span>
+                )}
+              </div>
+            )}
+            
             {/* Footer - fixed at bottom */}
             <div className="p-2 text-xs text-gray-400 text-center border-t border-gray-100">Click to flip</div>
           </div>
           
           {/* Back face */}
           <div 
-            className="absolute w-full h-full rounded-lg flex flex-col bg-white shadow-md"
+            className={`absolute w-full h-full rounded-lg flex flex-col bg-white shadow-md ${
+              currentFeedback ? (currentFeedback === 'correct' ? feedbackClasses.correct : feedbackClasses.incorrect) : ''
+            }`}
             style={{backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', zIndex: flipped ? 1 : 0}}
           >
             {/* Main content area - takes all available space minus footer */}
@@ -78,6 +109,18 @@ export const StudyFlipCard: React.FC<StudyFlipCardProps> = ({ flipped, front, ba
                 </div>
               </div>
             </div>
+            
+            {/* Feedback icons with fixed animation class */}
+            {currentFeedback && (
+              <div className="absolute bottom-5 right-5 text-4xl">
+                {currentFeedback === 'correct' ? (
+                  <span className="text-green-600 checkmark-zoom-animation">✓</span>
+                ) : (
+                  <span className="text-red-600">✗</span>
+                )}
+              </div>
+            )}
+            
             {/* Footer - fixed at bottom */}
             <div className="p-2 text-xs text-gray-400 text-center border-t border-gray-100">Click to flip</div>
           </div>
@@ -95,6 +138,36 @@ export const StudyFlipCard: React.FC<StudyFlipCardProps> = ({ flipped, front, ba
         }
         .flipped {
           transform: rotateY(180deg);
+        }
+        
+        /* Animation for incorrect feedback shake */
+        @keyframes shake-animation {
+          0% { transform: translateX(0); }
+          15% { transform: translateX(10px); }
+          30% { transform: translateX(-10px); }
+          45% { transform: translateX(10px); }
+          60% { transform: translateX(-10px); }
+          75% { transform: translateX(10px); }
+          90% { transform: translateX(-5px); }
+          100% { transform: translateX(0); }
+        }
+        
+        .shake-animation {
+          animation: shake-animation 0.5s cubic-bezier(.36,.07,.19,.97) both;
+          transform-origin: center;
+          backface-visibility: hidden;
+        }
+        
+        /* We need to duplicate these keyframes here since they're scoped within the component */
+        @keyframes checkmark-zoom {
+          0% { opacity: 0; transform: scale(0.5); }
+          50% { opacity: 1; transform: scale(1.5); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        
+        /* Updated class name to match what's being used in the page.tsx */
+        .checkmark-zoom-animation {
+          animation: checkmark-zoom 0.6s forwards;
         }
         
         /* Additional CSS for the markdown content styling */

@@ -8,11 +8,19 @@ export interface Deck {
   flashcards: Flashcard[];
   courseId: string;
   aiGenerated?: boolean;
+  lastScore?: number;
   course?: {
     id: string;
     name: string;
     // add more if needed
   };
+}
+
+export interface SubmitDeckAnswerParams {
+  answers: {
+    flashcardId: string;
+    answer: string;
+  }[];
 }
 
 export const DecksService = {
@@ -30,5 +38,9 @@ export const DecksService = {
   },
   async remove(id: string): Promise<void> {
     return apiClient.delete<void>(`/decks/${id}`);
+  },
+
+  async submitDeckAnswers(deckId: string, answers: SubmitDeckAnswerParams): Promise<Deck> {
+    return apiClient.post<Deck>(`/decks/${deckId}/submit`, answers);
   },
 };

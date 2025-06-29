@@ -18,7 +18,7 @@ export interface QuizQuestion {
   quizId: string;
 }
 
-export interface Quiz {
+export interface  Quiz {
   id: string;
   title: string;
   difficulty: DifficultyLevel;

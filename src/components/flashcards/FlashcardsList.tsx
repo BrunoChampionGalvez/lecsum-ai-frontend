@@ -425,7 +425,7 @@ export function FlashcardsList() {
                               <span className="text-xs font-medium">AI Generated</span>
                             </div>
                           )}
-                          <span>Flashcard deck</span>
+                          <span>Last score: {deck.lastScore != null ? (deck.lastScore / deck.flashcards.length * 100).toFixed(0) + '%' : 'N/A'}</span>
                         </div>
                       </div>
                     </>
