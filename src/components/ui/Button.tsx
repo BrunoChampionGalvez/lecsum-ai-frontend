@@ -2,7 +2,7 @@ import React from 'react';
 import { clsx } from 'clsx';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'orange' | 'teal' | 'white' | 'outline' | 'white-outline' | 'orange-outline' | 'green-outline' | 'purple-outline';
+  variant?: 'primary' | 'secondary' | 'orange' | 'teal' | 'white' | 'outline' | 'white-outline' | 'orange-outline' | 'green-outline' | 'purple-outline' | 'light-blue-outline';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
   children: React.ReactNode;
@@ -39,6 +39,8 @@ export const Button: React.FC<ButtonProps> = ({
         return 'bg-white text-[var(--green)] hover:bg-[var(--green-outline)] border border-[var(--green)]';
       case 'purple-outline':
         return 'bg-white text-[var(--purple)] hover:bg-[var(--purple-outline)] border border-[var(--purple)]';
+      case 'light-blue-outline':
+        return 'bg-white text-blue-400 hover:bg-blue-50 border border-blue-400';
       default:
         return 'bg-[var(--sky)] text-[var(--primary)] hover:bg-[var(--sky-light)]';
     }

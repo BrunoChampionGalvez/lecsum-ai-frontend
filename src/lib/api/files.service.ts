@@ -25,6 +25,7 @@ export interface AppFile {
   size: number;
   content?: string;
   processed: boolean;
+  textExtracted: boolean;
   createdAt: string;
   updatedAt: string;
   courseId: string;

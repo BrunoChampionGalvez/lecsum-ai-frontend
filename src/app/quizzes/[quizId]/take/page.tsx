@@ -520,7 +520,7 @@ Choices:
           <div>
             <div className="mb-6">
               <div className="flex justify-between items-center">
-                <div className="text-xl font-semibold mb-2">Question {current + 1} of {quiz?.questions ? (score / quiz.questions.length) : 0}</div>
+                <div className="text-xl font-semibold mb-2">Question {current + 1} of {quiz?.questions ? quiz.questions.length : 0}</div>
                 <div>
                   <span>
                     {/* Add correct/answered fraction and percentage */}

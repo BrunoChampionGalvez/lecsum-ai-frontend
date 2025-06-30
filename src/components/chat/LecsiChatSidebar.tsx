@@ -11,6 +11,7 @@ import { MentionedMaterial, MessageCitation } from "../../lib/api/chat.service";
 import { useSubscriptionLimits } from "../../hooks/useSubscriptionLimits";
 import { toast } from "react-hot-toast";
 import { useChatContext } from "../../lib/chat/ChatContext";
+import { useWindowSize } from "../../hooks/useWindowSize";
 
 // Using the configured apiClient that automatically handles authentication
 
@@ -46,6 +47,7 @@ interface File extends BaseMaterial {
   type: "file";
   parentId: string | null;
   courseId: string;
+  content: string;
 }
 
 interface Quiz extends BaseMaterial {
@@ -74,6 +76,8 @@ interface ChatSession {
 
 import { MessageRole } from "../../lib/api/chat.service";
 import { AxiosError } from 'axios'; // Added for error typing
+import { PdfViewer } from "../ui/pdf-express";
+import { AppFile } from "@/lib/api";
 
 export const LecsiChatSidebar: React.FC = () => {
   const [hover, setHover] = useState(false);
@@ -85,7 +89,6 @@ export const LecsiChatSidebar: React.FC = () => {
     setSelectedMaterials: setContextMaterials,
     createNewSession,
     setCreateNewSession,
-    // hasActiveSession, // Removed as unused
     setHasActiveSession
   } = useChatContext();
   const [messages, setMessages] = useState<LecsiMessage[]>([]);
@@ -96,15 +99,12 @@ export const LecsiChatSidebar: React.FC = () => {
   const { 
     canUseLiteMessage, 
     canUseThinkMessage, 
-    // remaining, // Removed as unused
     isActive
-    // refresh: refreshSubscriptionLimits // Removed as unused
   } = useSubscriptionLimits();
   
-  // const currentModeIsLimited = chatMode === 'lite' ? !canUseLiteMessage : !canUseThinkMessage; // Removed as unused
   const [showMentionSearch, setShowMentionSearch] = useState(false);
   const [mentionSearchQuery, setMentionSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<StudyMaterial[]>([]);
+  const [searchResults, setSearchResults] = useState<Partial<StudyMaterial[]>>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedMaterials, setSelectedMaterials] = useState<MentionedMaterial[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -112,6 +112,10 @@ export const LecsiChatSidebar: React.FC = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchResultsRef = useRef<HTMLDivElement>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  
+  // Get window size for responsive behavior
+  const { width } = useWindowSize();
+  const isMobile = width ? width < 768 : false;
   
   // Get inputValue, setInputValue and lastChangeWasExternal from ChatContext
   const { inputValue, setInputValue, lastChangeWasExternal } = useChatContext();
@@ -121,6 +125,15 @@ export const LecsiChatSidebar: React.FC = () => {
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [showSessionsHistory, setShowSessionsHistory] = useState(false);
 
+  // New state for file display
+  const [showFileDisplay, setShowFileDisplay] = useState(false);
+  const [currentFileId, setCurrentFileId] = useState<string | null>(null);
+  const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [currentFile, setCurrentFile] = useState<Partial<AppFile> | null>(null);
+  const [textSnippets, setTextSnippets] = useState<string[]>([]);
+  const [isLoadingFile, setIsLoadingFile] = useState(false);
+  
   // Track whether we're currently loading sessions to prevent duplicate requests
   const isLoadingSessionsRef = useRef(false);
 
@@ -545,6 +558,37 @@ export const LecsiChatSidebar: React.FC = () => {
     };
   }, []);
 
+  // Function to fetch papers (refresh the papers list)
+  const fetchPapers = async () => {
+    try {
+      const response: AppFile = await apiClient.get(`/files`, {
+        params: { fileId: currentFileId }
+      });
+      
+      // If we have a selected paper, update it with the fresh data
+      if (response) {
+        setCurrentFileId(response.id);
+        setCurrentFilePath(`https://storage.googleapis.com/lecsum-ai-files/${response.path}` || null);
+        setCurrentFile(response);
+      }
+    } catch (error) {
+      console.error('Error fetching papers:', error);
+      toast.error('Failed to refresh papers list');
+    }
+  };
+
+
+  // Handlers for text extraction
+  const handleTextExtractionComplete = (success: boolean) => {
+    if (success) {
+      toast.success('PDF text extraction completed successfully');
+      // Refresh the paper list to get the updated textExtracted status
+      fetchPapers();
+    } else {
+      toast.error('Failed to extract text from PDF');
+    }
+  };
+
   // Fetch and process study materials
   const searchStudyMaterials = async (query: string) => {
     if (!query.trim()) {
@@ -618,14 +662,15 @@ export const LecsiChatSidebar: React.FC = () => {
       }
       
       // Process and filter results
-      let results: StudyMaterial[] = [];
+      let results: Partial<StudyMaterial[]> = [];
       
       // Process courses
       const coursesData = coursesRes.data.map((course: { id: string; name: string; }) => ({
         id: course.id,
         name: course.name,
         type: 'course' as const,
-        path: [course.name.replace(/ /g, '_')]
+        path: [course.name.replace(/ /g, '_')],
+        content: '', // Initialize content property
       }));
       
       // Process folders
@@ -635,7 +680,8 @@ export const LecsiChatSidebar: React.FC = () => {
         type: 'folder' as const,
         parentId: folder.parentId === undefined ? null : folder.parentId,
         courseId: folder.courseId,
-        path: [] // Initialize path property
+        path: [], // Initialize path property
+        content: '' // Initialize content property
       }));
       
       // Process files
@@ -645,7 +691,8 @@ export const LecsiChatSidebar: React.FC = () => {
         type: 'file' as const,
         parentId: file.folderId === undefined ? null : file.folderId,
         courseId: file.courseId,
-        path: [] // Initialize path property
+        path: [], // Initialize path property
+        content: '' // Initialize content property
       }));
       
       // Process quizzes
@@ -654,7 +701,8 @@ export const LecsiChatSidebar: React.FC = () => {
         name: quiz.title,
         type: 'quiz' as const,
         courseId: quiz.courseId,
-        path: [] // Initialize path property
+        path: [], // Initialize path property
+        content: '' // Initialize content property
       }));
       
       // Process flashcard decks
@@ -663,14 +711,15 @@ export const LecsiChatSidebar: React.FC = () => {
         name: deck.name,
         type: "flashcardDeck" as const,
         courseId: deck.courseId,
-        path: [] 
+        path: [],
+        content: '' // Initialize content property
       }));
 
       // Build complete paths for all materials
       const allMaterials = [...coursesData, ...foldersData, ...filesData, ...quizzesData, ...decksData];
       
       // Loop through all materials and build paths
-      const buildPath = (material: StudyMaterial): string[] => {
+      const buildPath = (material: Partial<StudyMaterial>): string[] => {
         // Ensure material.path is initialized if not present, or use it if it is.
         const path: string[] = Array.isArray(material.path) ? [...material.path] : []; 
         
@@ -679,7 +728,7 @@ export const LecsiChatSidebar: React.FC = () => {
         if (material.type === 'course') {
           // If path is already populated (e.g. [courseName]), return it.
           // Otherwise, it will be constructed later.
-          if (path.length > 0 && path[0] === material.name.replace(/ /g, '_')) return path;
+          if (material.name && path.length > 0 && path[0] === material.name.replace(/ /g, '_')) return path;
           // If path is empty, it means it's a course and its name will be added as the first element.
           // This logic is a bit redundant with later parts but ensures courses are handled.
         }
@@ -726,14 +775,14 @@ export const LecsiChatSidebar: React.FC = () => {
       };
       
       // Assign paths to all materials
-      allMaterials.forEach((material: StudyMaterial) => {
+      allMaterials.forEach((material: Partial<StudyMaterial>) => {
         material.path = buildPath(material);
       });
       
       // Filter based on search criteria
       if (parentPath.length > 0) {
         // Hierarchical search (course/folder/etc)
-        results = allMaterials.filter((material: StudyMaterial) => {
+        results = allMaterials.filter((material: Partial<StudyMaterial>) => {
           if (!material.path || material.path.length < parentPath.length) return false;
           
           // Check if parent path matches
@@ -767,19 +816,19 @@ export const LecsiChatSidebar: React.FC = () => {
       // Sort results by relevance (exact matches first, then contains)
       results.sort((a, b) => {
         // Skip sort comparison for items with missing names
-        if (!a.name || !b.name) return 0;
+        if (a && b && (!a.name || !b.name)) return 0;
         
-        const aName = a.name.toLowerCase();
-        const bName = b.name.toLowerCase();
+        const aName = a?.name.toLowerCase();
+        const bName = b?.name.toLowerCase();
         const searchLower = searchTerm.toLowerCase();
         
         if (aName === searchLower && bName !== searchLower) return -1;
         if (bName === searchLower && aName !== searchLower) return 1;
         
-        if (aName.startsWith(searchLower) && !bName.startsWith(searchLower)) return -1;
-        if (bName.startsWith(searchLower) && !aName.startsWith(searchLower)) return 1;
+        if (aName?.startsWith(searchLower) && !bName?.startsWith(searchLower)) return -1;
+        if (bName?.startsWith(searchLower) && !aName?.startsWith(searchLower)) return 1;
         
-        return aName.localeCompare(bName);
+        return aName?.localeCompare(bName ?? '') || 0; // Fallback to localeCompare for other cases
       });
       
       setSearchResults(results.slice(0, 10)); // Limit to 10 results
@@ -841,7 +890,7 @@ export const LecsiChatSidebar: React.FC = () => {
   };
   
   // Handle selection of a study material
-  const handleSelectMaterial = (material: StudyMaterial) => {
+  const handleSelectMaterial = (material: Partial<StudyMaterial>) => {
     // Handle materials with missing names
     if (!material.name) {
       console.warn('Attempted to select a material with no name:', material);
@@ -850,11 +899,11 @@ export const LecsiChatSidebar: React.FC = () => {
     
     // Create a mentioned material object
     const mentionedMaterial: MentionedMaterial = {
-      id: material.id,
+      id: material.id || '',
       displayName: material.path?.join('/') || material.name.replace(/ /g, '_'),
-      type: material.type,
+      type: material.type || 'file', // Default to 'file' if type is missing
       originalName: material.name,
-      courseId: material.courseId || material.id // For courses, courseId is the course's own id
+      courseId: material.courseId || material.id || '' // For courses, courseId is the course's own id
     };
     
     // Check if this material is already selected
@@ -877,7 +926,7 @@ export const LecsiChatSidebar: React.FC = () => {
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchResults.length > 0) {
       e.preventDefault();
-      handleSelectMaterial(searchResults[0]);
+      handleSelectMaterial(searchResults[0] || {});
     } else if (e.key === 'Escape') {
       setShowMentionSearch(false);
     }
@@ -1291,6 +1340,41 @@ export const LecsiChatSidebar: React.FC = () => {
     }
   };
 
+  // Function to handle showing a file
+  const handleShowFile = async (fileId: string, textSnippets: string[]) => {
+    if (!fileId) {
+      console.error('Invalid file ID provided to handleShowFile');
+      return;
+    }
+    
+    setCurrentFileId(fileId);
+    setIsLoadingFile(true);
+    setShowFileDisplay(true);
+    
+    try {
+      // Fetch file content from the API
+      const response: File | null = await apiClient.get(`/files/${fileId}`);
+      setFileContent(response ? response.content : ''); // Use content or empty string if not available
+      setCurrentFilePath(`https://storage.googleapis.com/lecsum-ai-files/${response?.path || ''}`);
+    } catch (error) {
+      console.error('Error fetching file content:', error);
+      setFileContent('Error loading file content. Please try again.');
+      setErrorMessage('Failed to load file content');
+    } finally {
+      setIsLoadingFile(false);
+    }
+  };
+
+  // Function to hide the file display
+  const handleHideFileDisplay = () => {
+    setShowFileDisplay(false);
+    setCurrentFileId(null);
+    // Don't clear content immediately for a smoother transition
+    setTimeout(() => {
+      setFileContent(null);
+    }, 300); // Match the transition duration
+  };
+
   return (
     <>
       {/* Error message banner */}
@@ -1317,19 +1401,33 @@ export const LecsiChatSidebar: React.FC = () => {
       
       {/* Toggle Button */}
       <button
-        className={`fixed top-2/12 right-12 z-40 bg-[var(--primary)] text-white px-3 py-2 rounded-l-lg shadow-lg transition-transform translate-x-[calc(100%-2.5rem)]`}
+        className={`fixed top-2/12 z-40 px-3 py-2 rounded-lg shadow-lg transition-all duration-300 bg-[var(--primary)] text-white`}
         style={{
-          transform: open
-            ? (hover ? "translateX(-6px)" : "translateX(0)")
-            : (hover ? "translateX(calc(-2.5rem - 10px))" : "translateX(-2.5rem)"),
-          transition: 'transform 0.2s',
+          right: showFileDisplay ? 'auto' : '12px',
+          left: showFileDisplay ? '12px' : 'auto',
+          borderRadius: showFileDisplay ? '0 0.5rem 0.5rem 0' : '0.5rem 0 0 0.5rem',
+          display: showFileDisplay && isMobile ? 'none' : 'block',
         }}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onClick={() => setOpen(!open)}
         aria-label={open ? "Hide Lecsi chat" : "Show Lecsi chat"}
       >
-        <div className="flex items-center gap-1"><span className="mr-1 font-bold">←</span><span className="font-bold">Lecsi</span> <span className="text-4xl">👩🏻‍🦰</span></div>
+        <div className="flex items-center gap-1">
+          {showFileDisplay ? (
+            <>
+              <span className="font-bold">Lecsi</span>
+              <span className="text-4xl">👩🏻‍🦰</span>
+              <span className="ml-1 font-bold">→</span>
+            </>
+          ) : (
+            <>
+              <span className="mr-1 font-bold">←</span>
+              <span className="font-bold">Lecsi</span>
+              <span className="text-4xl">👩🏻‍🦰</span>
+            </>
+          )}
+        </div>
       </button>
 
       {/* Sidebar */}
@@ -1338,11 +1436,23 @@ export const LecsiChatSidebar: React.FC = () => {
           <motion.aside
             key="lecsi-sidebar"
             initial={{ x: "100%" }}
-            animate={{ x: 0 }}
+            animate={{ 
+              x: showFileDisplay && !isMobile ? "calc(-100vw + 380px)" : 0 
+            }}
             exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed top-0 right-0 z-50 h-full w-full sm:w-[380px] bg-white border-l border-gray-200 shadow-2xl flex flex-col"
-            style={{ maxWidth: 400 }}
+            transition={{ 
+              type: "spring", 
+              stiffness: 300, 
+              damping: 30
+            }}
+            className={`fixed top-0 h-full bg-white border-l border-gray-200 shadow-2xl flex flex-col right-0`}
+            style={{ 
+              zIndex: 50,
+              width: showFileDisplay && !isMobile ? "380px" : "100%",
+              maxWidth: showFileDisplay && !isMobile ? "380px" : "400px",
+              pointerEvents: showFileDisplay && isMobile ? 'none' : 'auto',
+              opacity: showFileDisplay && isMobile ? 0 : 1,
+            }}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b bg-[var(--primary)] text-white">
               <div className="flex items-center">
@@ -1378,7 +1488,10 @@ export const LecsiChatSidebar: React.FC = () => {
                   </button>
                 </div>
               </div>
-              <button onClick={() => setOpen(false)} aria-label="Close Lecsi chat" className="text-xl font-bold hover:text-[var(--orange-light)]">×</button>
+              <button onClick={() => {
+                  setOpen(false)
+                  setShowFileDisplay(false);
+                }} aria-label="Close Lecsi chat" className="text-xl font-bold hover:text-[var(--orange-light)]">×</button>
             </div>
             {/* Chat history panel */}
             {showSessionsHistory && (
@@ -1457,26 +1570,22 @@ export const LecsiChatSidebar: React.FC = () => {
               ) : messages.length === 0 ? (
                 <div className="text-gray-500 text-center mt-8">Say hello to Lecsi, your AI assistant!</div>
               ) : (
-                messages.map((msg) => {
-                  console.log('🎨 [LecsiChatSidebar] Rendering message ID:', msg.id, 'Role:', msg.role, 'Content length:', msg.content.length);
-                  console.log('🎨 [LecsiChatSidebar] Message content preview (first 200 chars):', msg.content.substring(0, 200) + (msg.content.length > 200 ? '...' : ''));
-                  return (
-                    <ChatMessage
-                      key={msg.id}
-                      message={{
-                        id: msg.id,
-                        content: msg.content,
-                        role: msg.role === "user" ? MessageRole.USER : MessageRole.AI, // Adjust if you use enums
-                        createdAt: msg.createdAt,
-                        chatSessionId: "lecsi-global",
-                        citations: msg.citations || [],
-                        // Pass the selectedMaterials for the "See mentions" dropdown
-                        selectedMaterials: msg.selectedMaterials,
-                      }}
-                      onClickCitation={() => {}}
-                    />
-                  );
-                })
+                messages.map((msg) => (
+                  <ChatMessage
+                    key={msg.id}
+                    message={{
+                      id: msg.id,
+                      content: msg.content,
+                      role: msg.role === "user" ? MessageRole.USER : MessageRole.AI,
+                      createdAt: msg.createdAt,
+                      chatSessionId: "lecsi-global",
+                      citations: msg.citations || [],
+                      selectedMaterials: msg.selectedMaterials,
+                    }}
+                    onClickCitation={() => {}}
+                    onShowFile={handleShowFile} // Pass the handleShowFile function
+                  />
+                ))
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -1495,21 +1604,21 @@ export const LecsiChatSidebar: React.FC = () => {
                           <ul>
                             {searchResults.map((item, index) => (
                               <li 
-                                key={item.id}
+                                key={item?.id}
                                 className={`p-2 hover:bg-gray-100 cursor-pointer ${index === 0 ? 'bg-gray-50 border-l-2 border-[var(--primary)]' : ''}`}
-                                onClick={() => handleSelectMaterial(item)}
+                                onClick={() => item && handleSelectMaterial(item)}
                               >
                                 <div className="flex items-center">
                                   <span className="mr-2">
-                                    {item.type === 'course' && '📚'}
-                                    {item.type === 'folder' && '📁'}
-                                    {item.type === 'file' && '📄'}
-                                    {item.type === 'quiz' && '❓'}
-                                    {item.type === 'flashcardDeck' && '🔤'}
+                                    {item?.type === 'course' && '📚'}
+                                    {item?.type === 'folder' && '📁'}
+                                    {item?.type === 'file' && '📄'}
+                                    {item?.type === 'quiz' && '❓'}
+                                    {item?.type === 'flashcardDeck' && '🔤'}
                                   </span>
                                   <div>
-                                    <div className="font-medium">{item.name || `Unnamed ${item.type} (${item.id.slice(0, 8)})`}</div>
-                                    <div className="text-xs text-gray-500">{item.path?.join('/')}</div>
+                                    <div className="font-medium">{item?.name || `Unnamed ${item?.type} (${item?.id.slice(0, 8)})`}</div>
+                                    <div className="text-xs text-gray-500">{item?.path?.join('/')}</div>
                                   </div>
                                 </div>
                               </li>
@@ -1665,6 +1774,64 @@ export const LecsiChatSidebar: React.FC = () => {
               />
             </div>
           </motion.aside>
+        )}
+      </AnimatePresence>
+
+      {/* File Display Panel */}
+      <AnimatePresence>
+        {showFileDisplay && (
+          <motion.div
+            key="file-display-panel"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="fixed top-0 right-0 h-full bg-white border-l border-gray-200 shadow-2xl flex flex-col"
+            style={{
+              zIndex: 40,
+              width: isMobile ? "100%" : open ? "calc(100% - 380px)" : "100%",
+              left: !isMobile && open ? "380px" : 0,
+            }}
+          >
+            {/* File Display Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-[var(--primary)] text-white">
+              <div className="flex items-center">
+                <button 
+                  onClick={handleHideFileDisplay}
+                  className="mr-3 hover:bg-[var(--primary-dark)] p-1 rounded transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                </button>
+                <span className="font-semibold text-lg">File Viewer</span>
+              </div>
+              <button onClick={handleHideFileDisplay} aria-label="Close file viewer" className="text-xl font-bold hover:text-[var(--orange-light)]">×</button>
+            </div>
+            
+            {/* File Display Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {isLoadingFile ? (
+                <div className="flex justify-center items-center h-full">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--primary)]"></div>
+                </div>
+              ) : currentFilePath && showFileDisplay ? (
+                <div className="prose prose-slate max-w-none">
+                  <PdfViewer 
+                    pdfUrl={currentFilePath}
+                    textSnippets={textSnippets} 
+                    paperId={currentFileId}
+                    shouldExtractText={!currentFile?.textExtracted}
+                    onTextExtractionComplete={handleTextExtractionComplete}
+                  />
+                </div>
+              ) : (
+                <div className="flex justify-center items-center h-full text-gray-500">
+                  No file content available
+                </div>
+              )}
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </>

@@ -21,12 +21,13 @@ const referenceTypeMap = {
 interface ChatMessageProps {
   message: ChatMessageType;
   onClickCitation?: (fileId: string, excerpt: string) => void;
+  onShowFile?: (fileId: string, textSnippet: string[]) => void; // Added prop for handling file display
 }
 
 interface ReferenceTag {
   type: 'file' | 'flashcardDeck' | 'quiz';
   id: string;
-  text?: string;
+  text?: string[];
   flashcardId?: string;
   questionId?: string;
 }
@@ -156,6 +157,7 @@ const QuizQuestionModal: React.FC<{
 const ChatMessageComponent: React.FC<ChatMessageProps> = ({ 
   message,
   // onClickCitation, // Removed as it's unused
+  onShowFile, // Add the new prop
 }) => {
   const [activeFlashcard, setActiveFlashcard] = useState<Flashcard | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<QuizQuestion | null>(null);
@@ -417,6 +419,15 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     }
   };
 
+  // New function to handle showing a file
+  const handleShowFile = (fileId: string, textSnippets: string[]) => {
+    if (onShowFile) {
+      onShowFile(fileId, textSnippets);
+    } else {
+      console.warn('onShowFile prop is not provided to ChatMessage component');
+    }
+  };
+
   const isUser = message.role === MessageRole.USER;
 
   // Use refs to track which messages have been processed for reference paths
@@ -444,7 +455,6 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     // Fetch each reference path
     refsToFetch.forEach(async ({ type, id, key }) => {
       try {
-        console.log(`Fetching path for ${type}:${id}`);
         const path = await ChatService.getReferencePath(type, id);
         
         // Update cache and state
@@ -485,7 +495,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             console.log('[CASCADE_DEBUG] Processing [/REF]. Accumulated content (first 100 chars):', `"${contentToParse.substring(0, 100)}"`);
             if (!contentToParse) {
               console.warn('[CASCADE_DEBUG] Reference segment has empty content after trim.');
-              currentRefSegment.tag = { type: 'file', id: 'empty_ref_content', text: '[Error: Empty reference content]' } as ReferenceTag;
+              currentRefSegment.tag = { type: 'file', id: 'empty_ref_content', text: [] } as ReferenceTag;
             } else {
               jsonStrToParse = contentToParse; // Assign here
               console.log('[CASCADE_DEBUG] Attempting JSON.parse on (first 100 chars):', `"${jsonStrToParse.substring(0, 100)}"`);
@@ -493,7 +503,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
 
               if (typeof currentRefSegment.tag !== 'object' || currentRefSegment.tag === null) {
                 console.error('[CASCADE_DEBUG] Parsed reference JSON is not an object. Parsed as:', currentRefSegment.tag, "Using string (first 100 chars):", `"${jsonStrToParse.substring(0, 100)}"`);
-                currentRefSegment.tag = { type: 'file', id: 'parse_error_non_object', text: '[Error: Reference data did not parse as a valid object structure.]' } as ReferenceTag;
+                currentRefSegment.tag = { type: 'file', id: 'parse_error_non_object', text: [] } as ReferenceTag;
               } else {
                 console.log('[CASCADE_DEBUG] JSON.parse successful. Tag:', currentRefSegment.tag);
               }
@@ -507,7 +517,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             }
             // jsonStrToParse will hold the content that was attempted, or be an empty string if contentToParse was empty.
             console.error('[CASCADE_DEBUG] JSON.parse FAILED. Error:', errorMessage, "Attempted to parse (first 100 chars):", `"${jsonStrToParse.substring(0, 100)}"`);
-            currentRefSegment.tag = { type: 'file', id: 'parse_error', text: `[Error parsing reference content: ${errorMessage}]` } as ReferenceTag;
+            currentRefSegment.tag = { type: 'file', id: 'parse_error', text: [] } as ReferenceTag;
           }
         }
         currentRefSegment = null;
@@ -692,6 +702,20 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
               </div>
               {/* File content snippet already shown above */}
               <div className="text-xs text-gray-500 mt-1"><span className="font-semibold">Path:</span> {displayPath}</div>
+              {/* Show file button - pass the content directly */}
+              {!isDeleted && tag.id && (
+                <div className="mt-2">
+                  <Button 
+                    variant="light-blue-outline" 
+                    size="sm"
+                    onClick={() => {
+                      handleShowFile(tag.id, tag.text || []);
+                    }}
+                  >
+                    Show File
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -943,5 +967,6 @@ export const ChatMessage = React.memo(ChatMessageComponent, (prev, next) =>
   prev.message.id === next.message.id &&
   prev.message.content === next.message.content &&
   JSON.stringify(prev.message.citations || []) === JSON.stringify(next.message.citations || []) &&
-  prev.onClickCitation === next.onClickCitation
+  prev.onClickCitation === next.onClickCitation &&
+  prev.onShowFile === next.onShowFile // Add onShowFile to memo comparison
 );
