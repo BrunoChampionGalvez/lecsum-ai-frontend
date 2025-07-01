@@ -11,6 +11,9 @@ import remarkGfm from 'remark-gfm';
 import type { QuizQuestion } from '@/lib/api/quizzes.service';
 import { QuizzesService } from '@/lib/api/quizzes.service';
 
+// Import the viewer manager
+import PDFViewerManager from '@/lib/pdf-viewer-manager';
+
 // Map of reference types to backend reference types
 const referenceTypeMap = {
   'file': 'file',
@@ -419,12 +422,21 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     }
   };
 
-  // New function to handle showing a file
-  const handleShowFile = (fileId: string, textSnippets: string[]) => {
+  // Function to handle showing a file
+  const handleShowFile = async (fileId: string, textSnippets: string[]) => {
+    if (!fileId) {
+      console.error('Invalid file ID provided to handleShowFile');
+      return;
+    }
+
+    console.log('ChatMessage: Handling Show File request for', fileId);
+    
+    // Clear any existing PDF viewers before showing a new one
+    await PDFViewerManager.clearAllViewers();
+    
+    // Call the parent's onShowFile handler if provided
     if (onShowFile) {
       onShowFile(fileId, textSnippets);
-    } else {
-      console.warn('onShowFile prop is not provided to ChatMessage component');
     }
   };
 
@@ -551,10 +563,16 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       }
       return <div>No content</div>;
     }
+
+    console.log('chatmessage content:', message.content);
+    
   
     // Parse content into segments preserving original order
     const segments = parseContentIntoSegments(message.content);
   
+    console.log('Parsed segments:', segments);
+    
+
     return (
       <div className="markdown-content w-full">
         {segments.map((segment, index) => {
@@ -621,6 +639,8 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           } else if (segment.type === 'reference') {
             // If we have a complete tag, render the full reference
             if (segment.tag) {
+              console.log('segment.tag:', segment.tag);
+              
               return renderReferenceTag(segment.tag, index);
             } else {
               // If no tag (streaming in progress), render a placeholder reference style
@@ -709,6 +729,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                     variant="light-blue-outline" 
                     size="sm"
                     onClick={() => {
+                      console.log('Show file button clicked for:', tag.id);
                       handleShowFile(tag.id, tag.text || []);
                     }}
                   >

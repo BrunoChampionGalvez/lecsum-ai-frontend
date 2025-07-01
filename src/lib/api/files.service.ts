@@ -151,4 +151,28 @@ export const FilesService = {
   async moveFile(fileId: string, folderId: string | null): Promise<AppFile> {
     return apiClient.patch<AppFile>(`/files/${fileId}/move`, { folderId });
   },
+
+  // Add a method to save extracted text from PDF
+  async saveExtractedText(fileId: string, textByPages: Record<string, string>): Promise<any> {
+    try {
+      console.log(`Sending extracted text for file ${fileId} with ${Object.keys(textByPages).length} pages`);
+      
+      // Debug log a sample of the content
+      const firstPageKey = Object.keys(textByPages)[0];
+      if (firstPageKey) {
+        const sample = textByPages[firstPageKey].substring(0, 100);
+        console.log(`Sample text from page ${firstPageKey}: ${sample}...`);
+      }
+      
+      const response = await apiClient.post(`/files/${fileId}/save-text`, {
+        textByPages
+      });
+      
+      console.log(`Text extraction saved successfully for file ${fileId}`);
+      return response;
+    } catch (error) {
+      console.error(`Failed to save extracted text for file ${fileId}:`, error);
+      throw error;
+    }
+  }
 };

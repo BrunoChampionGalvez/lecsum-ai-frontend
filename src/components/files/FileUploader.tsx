@@ -4,6 +4,21 @@ import React, { useState, useEffect, useRef, DragEvent } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { FilesService, AppFile } from '../../lib/api/files.service';
+import dynamic from 'next/dynamic';
+import PDFViewerManager from '../../lib/pdf-viewer-manager';
+import { toast } from 'react-hot-toast'; // Add this import for toast notifications
+
+// Dynamically import the PDF viewer to avoid SSR issues
+// const PdfViewer = dynamic(
+//   () => import('../ui/pdf-express').then(mod => ({ default: mod.PdfViewer })),
+//   { ssr: false }
+// );
+
+// Import the dedicated extractor component
+const PdfExtractor = dynamic(
+  () => import('../ui/pdf-express-extractor').then(mod => ({ default: mod.PdfExtractor })),
+  { ssr: false }
+);
 
 interface ApiError {
   response?: {
@@ -21,9 +36,17 @@ interface FileUploaderProps {
   folderId?: string | null;
   isOpen?: boolean;
   onClose?: () => void;
+  onExtractionComplete?: (fileId: string) => void; // New prop to handle extraction completion
 }
 
-export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUploaded, folderId, isOpen = false, onClose }) => {
+export const FileUploader: React.FC<FileUploaderProps> = ({ 
+  courseId, 
+  onFileUploaded, 
+  folderId, 
+  isOpen = false, 
+  onClose,
+  onExtractionComplete
+}) => {
   // Convert props to state to ensure component properly handles open/close
   const [isModalOpen, setIsModalOpen] = useState(isOpen);
   const [isUploading, setIsUploading] = useState(false);
@@ -43,6 +66,19 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // State for hidden file viewer functionality
+  const [extractionState, setExtractionState] = useState<{
+    fileId: string | null;
+    fileUrl: string | null;
+    isExtracting: boolean;
+    completed: boolean;
+  }>({
+    fileId: null,
+    fileUrl: null,
+    isExtracting: false,
+    completed: false
+  });
+  
   // Track changes to isOpen prop
   useEffect(() => {
     setIsModalOpen(isOpen);
@@ -56,10 +92,60 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
     }
   }, [folderId]);
   
+  // Clean up text extraction when component unmounts
+  useEffect(() => {
+    return () => {
+      // Cancel any in-progress text extraction and log cleanup
+      console.log('FileUploader unmounting, cleaning up text extraction state');
+      setExtractionState({
+        fileId: null,
+        fileUrl: null,
+        isExtracting: false,
+        completed: false
+      });
+    };
+  }, []);
+  
   // Handle modal close
   const handleClose = () => {
     setIsModalOpen(false);
     if (onClose) onClose();
+  };
+
+  // Update handleTextExtractionComplete to handle success and failure
+  const handleTextExtractionComplete = async (success: boolean) => {
+    console.log('Text extraction completed, success:', success, 'for fileId:', extractionState.fileId);
+    
+    try {
+      // Update extraction state
+      setExtractionState(prev => ({
+        ...prev,
+        isExtracting: false,
+        completed: true
+      }));
+      
+      // Show user feedback
+      if (success) {
+        console.log('Text extraction was successful!');
+        toast.success('Text extraction completed successfully');
+        
+        // Call the parent component's onExtractionComplete handler if provided
+        if (onExtractionComplete && extractionState.fileId) {
+          onExtractionComplete(extractionState.fileId);
+        }
+      } else {
+        console.warn('Text extraction failed. The file will still be available but search functionality might be limited.');
+        toast.error('Text extraction failed. Search functionality might be limited.', { duration: 6000 });
+      }
+      
+      // Close modal regardless of extraction result, but with a slight delay
+      setTimeout(() => {
+        handleClose();
+      }, 1000);
+    } catch (error) {
+      console.error('Error during extraction completion cleanup:', error);
+      handleClose(); // Close on error
+    }
   };
 
   // Validate file types (allow only PDF, DOCX, TXT)
@@ -94,8 +180,30 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
     
     try {
       // Determine file type and call appropriate API
+      let uploadedFile: AppFile;
+      
       if (file.type === 'application/pdf') {
-        return FilesService.uploadPdfFile(courseId, file, currentFolderId);
+        uploadedFile = await FilesService.uploadPdfFile(courseId, file, currentFolderId);
+        
+        // Set up PDF extraction if needed
+        if (uploadedFile && uploadedFile.id && uploadedFile.path) {
+          console.log('Setting up PDF extraction for:', uploadedFile.id);
+          
+          // Construct the file URL using the path from the uploaded file
+          const fileUrl = `https://storage.googleapis.com/lecsum-ai-files/${uploadedFile.path}`;
+          
+          // Set state to trigger extraction
+          setExtractionState({
+            fileId: uploadedFile.id,
+            fileUrl: fileUrl,
+            isExtracting: true,
+            completed: false
+          });
+          
+          console.log('PDF extraction will begin for:', fileUrl);
+        }
+        
+        return uploadedFile;
       } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
         return FilesService.uploadDocxFile(courseId, file, currentFolderId);
       } else if (file.type === 'text/plain') {
@@ -140,13 +248,28 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
       
       // Upload files sequentially to avoid overwhelming the server
       const uploadedAppFiles: AppFile[] = [];
+      let hasPdfToExtract = false;
+      
       for (let i = 0; i < valid.length; i++) {
         const newFile = await uploadSingleFile(valid[i], i, valid.length);
         uploadedAppFiles.push(newFile);
+        
+        // Check if this is a PDF file that needs extraction
+        if (valid[i].type === 'application/pdf' && newFile && !newFile.textExtracted) {
+          hasPdfToExtract = true;
+        }
       }
       
       if (onFileUploaded) onFileUploaded(uploadedAppFiles);
-      handleClose(); // Close modal after successful upload
+      
+      // Only close the modal if we're not extracting text
+      // This is the key change - don't close immediately for PDFs that need extraction
+      if (!extractionState.isExtracting || !hasPdfToExtract) {
+        console.log('No text extraction in progress, closing modal immediately');
+        handleClose();
+      } else {
+        console.log('Text extraction in progress, modal will stay open until extraction completes');
+      }
     } catch (errRaw) {
       const err = errRaw as ApiError;
       console.error('Upload error:', err, 'Folder ID was:', currentFolderId);
@@ -192,23 +315,48 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
     }
   };
 
+  // Update if !isModalOpen condition to ensure we only render one extractor instance
   if (!isModalOpen) {
+    // If we're still extracting text, render the extractor even when modal is closed
+    if (extractionState.isExtracting && extractionState.fileId && extractionState.fileUrl) {
+      console.log('Rendering extractor for file:', extractionState.fileId);
+      return (
+        <div className="hidden-extractor-wrapper" style={{ 
+          position: 'fixed', 
+          left: '-9999px',
+          width: '800px',
+          height: '600px',
+          overflow: 'hidden',
+        }}>
+          <PdfExtractor
+            key={`extractor-${extractionState.fileId}-${Date.now()}`}
+            fileId={extractionState.fileId}
+            fileUrl={extractionState.fileUrl}
+            onExtractionComplete={handleTextExtractionComplete}
+            onExtractionProgress={(progress) => {
+              console.log('Text extraction progress:', progress);
+            }}
+          />
+        </div>
+      );
+    }
     return null;
   }
 
   return (
-    <div className="fixed inset-0 bg-[rgba(0,0,0,0.5)] z-50 flex items-center justify-center">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto relative">
-        <button 
-          className="absolute top-4 right-4 text-gray-500 hover:text-gray-700" 
-          onClick={handleClose}
-          disabled={isUploading}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+    <>
+      <div className="fixed inset-0 bg-[rgba(0,0,0,0.5)] z-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto relative">
+          <button 
+            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700" 
+            onClick={handleClose}
+            disabled={isUploading}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
       
         {!textContent.showTextInput ? (
           <div>
@@ -306,6 +454,11 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
                     Uploading file {uploadProgress.currentFileIndex} of {uploadProgress.totalFiles}
                   </div>
                 )}
+                {extractionState.isExtracting && (
+                  <div className="mt-2 text-sm text-gray-500">
+                    Extracting text from PDF file...
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -374,11 +527,31 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ courseId, onFileUplo
                   <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-[var(--primary)] border-t-transparent"></div>
                   <div className="mt-2 text-gray-600">Saving...</div>
                 </div>
-              )}
-            </form>
+              )}              </form>
           </div>
         )}
       </div>
     </div>
+    
+    {/* Render the extractor if needed - but not twice! */}
+    {extractionState.isExtracting && extractionState.fileId && extractionState.fileUrl && !isModalOpen && (
+      <div className="hidden-extractor-wrapper" style={{ 
+        position: 'fixed', 
+        left: '-9999px',
+        width: '800px',
+        height: '600px',
+      }}>
+        <PdfExtractor
+          key={`extractor-${extractionState.fileId}`}
+          fileId={extractionState.fileId}
+          fileUrl={extractionState.fileUrl}
+          onExtractionComplete={handleTextExtractionComplete}
+          onExtractionProgress={(progress) => {
+            console.log('Text extraction progress:', progress);
+          }}
+        />
+      </div>
+    )}
+    </>
   );
 };

@@ -134,6 +134,13 @@ export const CourseFiles = ({ courseId, folderTreeReady, files, folders, uploadM
         fetchData();
       }
     };
+
+    // Handle post-extraction refresh
+    const handleExtractionComplete = (fileId: string) => {
+      console.log('Text extraction completed for file:', fileId);
+      // Refresh course data to update file names and metadata
+      fetchData();
+    };
   
     // Loading is now handled by the parent component
   
@@ -258,6 +265,7 @@ export const CourseFiles = ({ courseId, folderTreeReady, files, folders, uploadM
           courseId={courseId}
           onFileUploaded={handleFileUploaded}
           folderId={selectedFolderId}
+          onExtractionComplete={handleExtractionComplete} // Add this line
         />
       </div>
     );

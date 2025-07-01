@@ -64,8 +64,18 @@ export class ApiClient {
   }
   
   async post<T>(url: string, data: unknown, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.post<T>(url, data, config);
-    return response.data;
+    console.log(`API POST request to ${url}:`, { 
+      data: data,
+      config: config
+    });
+    try {
+      const response = await this.client.post<T>(url, data, config);
+      console.log(`API POST response from ${url}:`, response);
+      return response.data;
+    } catch (error) {
+      console.error(`API POST error for ${url}:`, error);
+      throw error;
+    }
   }
   
   async put<T>(url: string, data: unknown, config?: AxiosRequestConfig): Promise<T> {

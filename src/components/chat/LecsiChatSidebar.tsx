@@ -78,6 +78,7 @@ import { MessageRole } from "../../lib/api/chat.service";
 import { AxiosError } from 'axios'; // Added for error typing
 import { PdfViewer } from "../ui/pdf-express";
 import { AppFile } from "@/lib/api";
+import PDFViewerManager from '@/lib/pdf-viewer-manager';
 
 export const LecsiChatSidebar: React.FC = () => {
   const [hover, setHover] = useState(false);
@@ -828,7 +829,7 @@ export const LecsiChatSidebar: React.FC = () => {
         if (aName?.startsWith(searchLower) && !bName?.startsWith(searchLower)) return -1;
         if (bName?.startsWith(searchLower) && !aName?.startsWith(searchLower)) return 1;
         
-        return aName?.localeCompare(bName ?? '') || 0; // Fallback to localeCompare for other cases
+        return aName?.localeCompare(bName ?? '') || 0;
       });
       
       setSearchResults(results.slice(0, 10)); // Limit to 10 results
@@ -1346,8 +1347,14 @@ export const LecsiChatSidebar: React.FC = () => {
       console.error('Invalid file ID provided to handleShowFile');
       return;
     }
+
+    console.log('textSnippets test 2:', textSnippets);
+    
+    // First clean up any existing viewers to prevent conflicts
+    await PDFViewerManager.clearAllViewers();
     
     setCurrentFileId(fileId);
+    setTextSnippets(textSnippets || []);
     setIsLoadingFile(true);
     setShowFileDisplay(true);
     
@@ -1355,11 +1362,25 @@ export const LecsiChatSidebar: React.FC = () => {
       // Fetch file content from the API
       const response: File | null = await apiClient.get(`/files/${fileId}`);
       setFileContent(response ? response.content : ''); // Use content or empty string if not available
-      setCurrentFilePath(`https://storage.googleapis.com/lecsum-ai-files/${response?.path || ''}`);
+      
+      // Ensure we have a valid path before setting it
+      if (response && response.path) {
+        console.log('File path from API:', response.path);
+        // Make sure the path is a string and not undefined
+        const filePath = `https://storage.googleapis.com/lecsum-ai-files/${response.path}`;
+        console.log('Setting current file path:', filePath);
+        setCurrentFilePath(filePath);
+        setCurrentFile(response as unknown as Partial<AppFile>);
+      } else {
+        console.error('File response missing path:', response);
+        setErrorMessage('File path not found');
+        setCurrentFilePath(null);
+      }
     } catch (error) {
       console.error('Error fetching file content:', error);
       setFileContent('Error loading file content. Please try again.');
       setErrorMessage('Failed to load file content');
+      setCurrentFilePath(null);
     } finally {
       setIsLoadingFile(false);
     }
@@ -1368,10 +1389,16 @@ export const LecsiChatSidebar: React.FC = () => {
   // Function to hide the file display
   const handleHideFileDisplay = () => {
     setShowFileDisplay(false);
-    setCurrentFileId(null);
-    // Don't clear content immediately for a smoother transition
+    
+    // When hiding, clear all viewers to prevent issues next time
+    PDFViewerManager.clearAllViewers();
+    
+    // Don't clear these values immediately for a smoother transition
     setTimeout(() => {
+      setCurrentFileId(null);
+      setCurrentFilePath(null);
       setFileContent(null);
+      setCurrentFile(null);
     }, 300); // Match the transition duration
   };
 
@@ -1810,13 +1837,12 @@ export const LecsiChatSidebar: React.FC = () => {
             </div>
             
             {/* File Display Content */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto">
               {isLoadingFile ? (
                 <div className="flex justify-center items-center h-full">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--primary)]"></div>
                 </div>
               ) : currentFilePath && showFileDisplay ? (
-                <div className="prose prose-slate max-w-none">
                   <PdfViewer 
                     pdfUrl={currentFilePath}
                     textSnippets={textSnippets} 
@@ -1824,10 +1850,17 @@ export const LecsiChatSidebar: React.FC = () => {
                     shouldExtractText={!currentFile?.textExtracted}
                     onTextExtractionComplete={handleTextExtractionComplete}
                   />
-                </div>
               ) : (
-                <div className="flex justify-center items-center h-full text-gray-500">
-                  No file content available
+                <div className="flex flex-col justify-center items-center h-full text-gray-500">
+                  <p>No file content available</p>
+                  {currentFileId && !currentFilePath && (
+                    <button 
+                      className="mt-4 px-4 py-2 bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-dark)] transition-colors"
+                      onClick={() => handleShowFile(currentFileId, textSnippets)}
+                    >
+                      Retry loading file
+                    </button>
+                  )}
                 </div>
               )}
             </div>
