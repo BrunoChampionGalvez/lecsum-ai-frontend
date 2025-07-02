@@ -40,6 +40,9 @@ export const PdfExtractor: React.FC<PdfExtractorProps> = ({
   // Reset the global state for this file when the component mounts
   useEffect(() => {
     console.log(`[PDF Extractor] Component mounting for file ${fileId}`);
+    // Set the mounted flag to true
+    mountedRef.current = true;
+    
     // If this file was previously marked as completed, clear that state
     if (completedExtractions.has(fileId)) {
       console.log(`[PDF Extractor] Clearing completed status for file ${fileId}`);
@@ -197,7 +200,9 @@ export const PdfExtractor: React.FC<PdfExtractorProps> = ({
                 activeExtractions.add(fileId);
               }
               
-              extractText(instance);
+              // Start extraction immediately
+              console.log('[PDF Extractor] Starting text extraction automatically after document loaded');
+              await extractText(instance);
             } else {
               console.log(`[PDF Extractor] Extraction already ${extractionStatusRef.current}, skipping`);
             }

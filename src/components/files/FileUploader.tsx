@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, DragEvent } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { FilesService, AppFile } from '../../lib/api/files.service';
+import { FilesService, AppFile, FileType } from '../../lib/api/files.service';
 import dynamic from 'next/dynamic';
 import PDFViewerManager from '../../lib/pdf-viewer-manager';
 import { toast } from 'react-hot-toast'; // Add this import for toast notifications
@@ -264,11 +264,31 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
       
       // Only close the modal if we're not extracting text
       // This is the key change - don't close immediately for PDFs that need extraction
-      if (!extractionState.isExtracting || !hasPdfToExtract) {
-        console.log('No text extraction in progress, closing modal immediately');
-        handleClose();
+      if (hasPdfToExtract) {
+        console.log('PDF needs extraction, setting up extraction state and keeping modal open');
+        // Find the PDF that needs extraction and setup extraction state
+        const pdfToExtract = uploadedAppFiles.find(file => 
+          file.type === FileType.PDF && !file.textExtracted
+        );
+        
+        if (pdfToExtract) {
+          console.log('Setting up extraction for:', pdfToExtract.id, pdfToExtract.path);
+          // Construct the file URL using the path from the uploaded file
+          const fileUrl = `https://storage.googleapis.com/lecsum-ai-files/${pdfToExtract.path}`;
+          
+          setExtractionState({
+            fileId: pdfToExtract.id,
+            fileUrl: fileUrl,
+            isExtracting: true,
+            completed: false
+          });
+        } else {
+          console.log('No PDF found for extraction despite hasPdfToExtract flag');
+          handleClose();
+        }
       } else {
-        console.log('Text extraction in progress, modal will stay open until extraction completes');
+        console.log('No text extraction needed, closing modal immediately');
+        handleClose();
       }
     } catch (errRaw) {
       const err = errRaw as ApiError;
@@ -316,48 +336,29 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
   };
 
   // Update if !isModalOpen condition to ensure we only render one extractor instance
-  if (!isModalOpen) {
-    // If we're still extracting text, render the extractor even when modal is closed
-    if (extractionState.isExtracting && extractionState.fileId && extractionState.fileUrl) {
-      console.log('Rendering extractor for file:', extractionState.fileId);
-      return (
-        <div className="hidden-extractor-wrapper" style={{ 
-          position: 'fixed', 
-          left: '-9999px',
-          width: '800px',
-          height: '600px',
-          overflow: 'hidden',
-        }}>
-          <PdfExtractor
-            key={`extractor-${extractionState.fileId}-${Date.now()}`}
-            fileId={extractionState.fileId}
-            fileUrl={extractionState.fileUrl}
-            onExtractionComplete={handleTextExtractionComplete}
-            onExtractionProgress={(progress) => {
-              console.log('Text extraction progress:', progress);
-            }}
-          />
-        </div>
-      );
-    }
+  // IMPORTANT: We need to render the extractor component regardless of modal state
+  // to ensure text extraction completes even if the modal is closed
+  if (!isModalOpen && !extractionState.isExtracting) {
     return null;
   }
-
+  
   return (
     <>
-      <div className="fixed inset-0 bg-[rgba(0,0,0,0.5)] z-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto relative">
-          <button 
-            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700" 
-            onClick={handleClose}
-            disabled={isUploading}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-      
+      {/* Conditionally render the modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-[rgba(0,0,0,0.5)] z-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto relative">
+            <button 
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700" 
+              onClick={handleClose}
+              disabled={isUploading || extractionState.isExtracting}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+        
         {!textContent.showTextInput ? (
           <div>
             <h2 className="text-lg font-semibold text-[var(--primary)] mb-4">
@@ -438,6 +439,19 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
                 Enter Text Directly
               </Button>
             </div>
+            
+            {/* Extraction progress indicator */}
+            {extractionState.isExtracting && (
+              <div className="mt-4 p-3 bg-blue-50 rounded-md">
+                <div className="flex items-center">
+                  <div className="mr-3 animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+                  <p className="text-sm text-blue-700">
+                    Extracting text from PDF... 
+                    <span className="ml-1 font-medium">Please wait</span>
+                  </p>
+                </div>
+              </div>
+            )}
             
             {error && (
               <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-md">
@@ -527,19 +541,22 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
                   <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-[var(--primary)] border-t-transparent"></div>
                   <div className="mt-2 text-gray-600">Saving...</div>
                 </div>
-              )}              </form>
+              )}
+              </form>
           </div>
         )}
       </div>
     </div>
+    )}
     
-    {/* Render the extractor if needed - but not twice! */}
-    {extractionState.isExtracting && extractionState.fileId && extractionState.fileUrl && !isModalOpen && (
+    {/* Render the extractor if needed - don't rely on modal visibility */}
+    {extractionState.isExtracting && extractionState.fileId && extractionState.fileUrl && (
       <div className="hidden-extractor-wrapper" style={{ 
         position: 'fixed', 
         left: '-9999px',
         width: '800px',
         height: '600px',
+        zIndex: -1
       }}>
         <PdfExtractor
           key={`extractor-${extractionState.fileId}`}

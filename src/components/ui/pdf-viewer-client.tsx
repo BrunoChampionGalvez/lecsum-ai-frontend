@@ -176,17 +176,13 @@ export const PdfViewerClient = ({
                                 console.log('Processing text snippets for highlighting');
                                 
                                 try {
-                                    // Build a regex to match all text snippets
-                                    const escapeRegExp = (s: string) =>
-                                        s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
-                                    textSnippets = Array.isArray(textSnippets) ? textSnippets : [textSnippets];
-                                    const escapedPatterns = textSnippets.map(escapeRegExp);
-                                    const regexPattern = escapedPatterns.join('|');
-                                    
-                                    if (regexPattern) {
-                                        console.log('Searching for text patterns');
-                                        UI.searchTextFull(regexPattern, {
-                                            regex: true,
+                                    const searchValue = Array.isArray(textSnippets)
+                                        ? textSnippets[0]
+                                        : textSnippets
+                                    if (searchValue) {
+                                        console.log('Searching for text');
+                                        UI.searchText(searchValue, {
+                                            wholeWord: true,
                                         });
                                     }
                                 } catch (err) {
