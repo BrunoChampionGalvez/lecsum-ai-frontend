@@ -168,7 +168,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
           ...prevContents,
           [parentFolderId]: {
             ...currentParentContents,
-            files: [...currentParentContents.files, apiFile].sort((a, b) => a.name.localeCompare(b.name))
+            files: [...currentParentContents.files, apiFile].sort((a, b) => a.name?.localeCompare(b.name))
           }
         };
       });
@@ -628,7 +628,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
               ...prevContents,
               [parentId]: {
                 ...parentContent,
-                folders: [...parentContent.folders, newlyCreatedFolder].sort((a, b) => a.name.localeCompare(b.name))
+                folders: [...parentContent.folders, newlyCreatedFolder].sort((a, b) => a.name?.localeCompare(b.name))
               }
             };
           });
@@ -1087,7 +1087,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
         
         {/* Root files section - only show files that don't have a folderId */}
         <div className="flex flex-col gap-3">
-          {files.filter(file => !file.folderId).sort((a, b) => a.name.localeCompare(b.name)).map(file => renderFile(file))}
+          {files.filter(file => !file.folderId).sort((a, b) => a.name?.localeCompare(b.name)).map(file => renderFile(file))}
         </div>
       </div>
       

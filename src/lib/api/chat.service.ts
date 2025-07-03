@@ -81,4 +81,15 @@ export const ChatService = {
     const response = await apiClient.get<{ path: string }>(`/chat/reference-path/${type}/${id}`);
     return response.path;
   },
+
+  async searchReferenceAgain(messageId: string, textToSearch: string, chatMessage: string): Promise<string> {
+    console.log('Inside searchReferenceAgain Service');
+    
+    const response = await apiClient.post<string>(`/chat/search-reference-again/${messageId}`, {
+      textToSearch,
+      chatMessage
+    });
+    
+    return response;
+  }
 };

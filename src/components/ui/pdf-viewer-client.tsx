@@ -7,7 +7,7 @@ import PDFViewerManager from '@/lib/pdf-viewer-manager';
 
 interface PdfViewerClientProps {
   pdfUrl: string | null;
-  textSnippets?: string[];
+  textSnippet?: string;
   paperId?: string | null;
   shouldExtractText?: boolean;
   onTextExtractionComplete?: (success: boolean) => void;
@@ -16,7 +16,7 @@ interface PdfViewerClientProps {
 
 export const PdfViewerClient = ({ 
   pdfUrl, 
-  textSnippets = [],
+  textSnippet = '',
   paperId, 
   shouldExtractText = false,
   onTextExtractionComplete,
@@ -170,15 +170,17 @@ export const PdfViewerClient = ({
                             if (!mountedRef.current) return;
                             
                             console.log('Document loaded successfully');
+
+                            // Set fitMode to fit width
+                            const FitMode = UI.FitMode;
+                            UI.setFitMode(FitMode.FitWidth);
                             
                             // Handle text search if snippets are provided
-                            if (textSnippets && textSnippets.length > 0) {
+                            if (textSnippet) {
                                 console.log('Processing text snippets for highlighting');
                                 
                                 try {
-                                    const searchValue = Array.isArray(textSnippets)
-                                        ? textSnippets[0]
-                                        : textSnippets
+                                    const searchValue = textSnippet.replace(/(?<!-)[\r\n]+/g, ' ');
                                     if (searchValue) {
                                         console.log('Searching for text');
                                         UI.searchText(searchValue, {
@@ -264,7 +266,7 @@ export const PdfViewerClient = ({
                 initializingRef.current = false;
             }
         };
-    }, [pdfUrl, shouldExtractText, paperId, isExtracting, isInitialized, cleanUpViewer, textSnippets]);
+    }, [pdfUrl, shouldExtractText, paperId, isExtracting, isInitialized, cleanUpViewer, textSnippet]);
     
     // Function to extract text with batching
     const extractTextFromPdf = useCallback(async (instance: any, paperIdToExtract: string) => {

@@ -132,7 +132,7 @@ export const LecsiChatSidebar: React.FC = () => {
   const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [currentFile, setCurrentFile] = useState<Partial<AppFile> | null>(null);
-  const [textSnippets, setTextSnippets] = useState<string[]>([]);
+  const [textSnippet, setTextSnippet] = useState<string>('');
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   
   // Track whether we're currently loading sessions to prevent duplicate requests
@@ -1341,20 +1341,34 @@ export const LecsiChatSidebar: React.FC = () => {
     }
   };
 
+  // Handle message update when search reference again is successful
+  const handleMessageUpdate = useCallback((messageId: string, updatedContent: string) => {
+    console.log('Updating message in LecsiChatSidebar:', messageId);
+    console.log('Updated content:', updatedContent);
+    
+    setMessages(prevMessages => 
+      prevMessages.map(message => 
+        message.id === messageId 
+          ? { ...message, content: updatedContent } 
+          : message
+      )
+    );
+  }, []);
+
   // Function to handle showing a file
-  const handleShowFile = async (fileId: string, textSnippets: string[]) => {
+  const handleShowFile = async (fileId: string, textSnippet: string) => {
     if (!fileId) {
       console.error('Invalid file ID provided to handleShowFile');
       return;
     }
 
-    console.log('textSnippets test 2:', textSnippets);
+    console.log('textSnippet test 2:', textSnippet);
     
     // First clean up any existing viewers to prevent conflicts
     await PDFViewerManager.clearAllViewers();
     
     setCurrentFileId(fileId);
-    setTextSnippets(textSnippets || []);
+    setTextSnippet(textSnippet || '');
     setIsLoadingFile(true);
     setShowFileDisplay(true);
     
@@ -1611,6 +1625,7 @@ export const LecsiChatSidebar: React.FC = () => {
                     }}
                     onClickCitation={() => {}}
                     onShowFile={handleShowFile} // Pass the handleShowFile function
+                    onMessageUpdated={handleMessageUpdate} // Pass the message update handler
                   />
                 ))
               )}
@@ -1845,7 +1860,7 @@ export const LecsiChatSidebar: React.FC = () => {
               ) : currentFilePath && showFileDisplay ? (
                   <PdfViewer 
                     pdfUrl={currentFilePath}
-                    textSnippets={textSnippets} 
+                    textSnippet={textSnippet} 
                     paperId={currentFileId}
                     shouldExtractText={!currentFile?.textExtracted}
                     onTextExtractionComplete={handleTextExtractionComplete}
@@ -1856,7 +1871,7 @@ export const LecsiChatSidebar: React.FC = () => {
                   {currentFileId && !currentFilePath && (
                     <button 
                       className="mt-4 px-4 py-2 bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-dark)] transition-colors"
-                      onClick={() => handleShowFile(currentFileId, textSnippets)}
+                      onClick={() => handleShowFile(currentFileId, textSnippet)}
                     >
                       Retry loading file
                     </button>

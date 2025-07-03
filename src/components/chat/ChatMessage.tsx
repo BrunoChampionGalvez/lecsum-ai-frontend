@@ -24,13 +24,14 @@ const referenceTypeMap = {
 interface ChatMessageProps {
   message: ChatMessageType;
   onClickCitation?: (fileId: string, excerpt: string) => void;
-  onShowFile?: (fileId: string, textSnippet: string[]) => void; // Added prop for handling file display
+  onShowFile?: (fileId: string, textSnippet: string) => void; // Added prop for handling file display
+  onMessageUpdated?: (messageId: string, updatedContent: string) => void; // Callback for when a message is updated
 }
 
 interface ReferenceTag {
   type: 'file' | 'flashcardDeck' | 'quiz';
   id: string;
-  text?: string[];
+  text?: string;
   flashcardId?: string;
   questionId?: string;
 }
@@ -161,6 +162,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   message,
   // onClickCitation, // Removed as it's unused
   onShowFile, // Add the new prop
+  onMessageUpdated, // Add the message updated callback
 }) => {
   const [activeFlashcard, setActiveFlashcard] = useState<Flashcard | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<QuizQuestion | null>(null);
@@ -170,6 +172,8 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   // State to track which references are currently being fetched
   const [fetchingRefs, setFetchingRefs] = useState<Record<string, boolean>>({});
   const [showMentions, setShowMentions] = useState(false);
+  // State to track which references are being searched again
+  const [searchingRefs, setSearchingRefs] = useState<Record<string, boolean>>({});
 
   const [loadingFlashcards, setLoadingFlashcards] = useState<Record<string, boolean>>({});
   // State for API-fetched flashcard and question content - store complete flashcard objects
@@ -423,7 +427,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   };
 
   // Function to handle showing a file
-  const handleShowFile = async (fileId: string, textSnippets: string[]) => {
+  const handleShowFile = async (fileId: string, textSnippet: string) => {
     if (!fileId) {
       console.error('Invalid file ID provided to handleShowFile');
       return;
@@ -436,9 +440,48 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     
     // Call the parent's onShowFile handler if provided
     if (onShowFile) {
-      onShowFile(fileId, textSnippets);
+      onShowFile(fileId, textSnippet);
     }
   };
+  
+  // Function to handle searching a reference again
+  const handleSearchReferenceAgain = async (messageId: string, textToSearch: string, message: ChatMessageType, tagId: string) => {
+    try {
+      if (!textToSearch || !messageId || !message) {
+        console.error('Invalid parameters for handleSearchReferenceAgain:', { messageId, textToSearch, message });
+        return;
+      }
+
+      // Mark this reference as being searched using the tag id for specific tracking
+      setSearchingRefs(prev => ({ ...prev, [tagId]: true }));
+      
+      // Call the service to search the reference again
+      const result = await ChatService.searchReferenceAgain(messageId, textToSearch, message.content);
+      
+      // If result is empty, use the original text
+      if (!result || result.trim() === '') {
+        console.warn('Search returned empty result, using original text:', textToSearch);
+        return;
+      }
+      
+      // Update the message content with the new result
+      message.content = result;
+      
+      // Notify parent component about the updated message
+      if (onMessageUpdated) {
+        onMessageUpdated(messageId, result);
+      }
+      
+      // Optionally, you can also update the state or UI to reflect this change
+      console.log('Search reference again result:', result);
+      
+    } catch (error) {
+      console.error('Error searching reference again:', error);
+    } finally {
+      // Clear loading state
+      setSearchingRefs(prev => ({ ...prev, [tagId]: false }));
+    }
+  }
 
   const isUser = message.role === MessageRole.USER;
 
@@ -507,7 +550,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             console.log('[CASCADE_DEBUG] Processing [/REF]. Accumulated content (first 100 chars):', `"${contentToParse.substring(0, 100)}"`);
             if (!contentToParse) {
               console.warn('[CASCADE_DEBUG] Reference segment has empty content after trim.');
-              currentRefSegment.tag = { type: 'file', id: 'empty_ref_content', text: [] } as ReferenceTag;
+              currentRefSegment.tag = { type: 'file', id: 'empty_ref_content', text: '' } as ReferenceTag;
             } else {
               jsonStrToParse = contentToParse; // Assign here
               console.log('[CASCADE_DEBUG] Attempting JSON.parse on (first 100 chars):', `"${jsonStrToParse.substring(0, 100)}"`);
@@ -515,7 +558,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
 
               if (typeof currentRefSegment.tag !== 'object' || currentRefSegment.tag === null) {
                 console.error('[CASCADE_DEBUG] Parsed reference JSON is not an object. Parsed as:', currentRefSegment.tag, "Using string (first 100 chars):", `"${jsonStrToParse.substring(0, 100)}"`);
-                currentRefSegment.tag = { type: 'file', id: 'parse_error_non_object', text: [] } as ReferenceTag;
+                currentRefSegment.tag = { type: 'file', id: 'parse_error_non_object', text: '' } as ReferenceTag;
               } else {
                 console.log('[CASCADE_DEBUG] JSON.parse successful. Tag:', currentRefSegment.tag);
               }
@@ -529,7 +572,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             }
             // jsonStrToParse will hold the content that was attempted, or be an empty string if contentToParse was empty.
             console.error('[CASCADE_DEBUG] JSON.parse FAILED. Error:', errorMessage, "Attempted to parse (first 100 chars):", `"${jsonStrToParse.substring(0, 100)}"`);
-            currentRefSegment.tag = { type: 'file', id: 'parse_error', text: [] } as ReferenceTag;
+            currentRefSegment.tag = { type: 'file', id: 'parse_error', text: '' } as ReferenceTag;
           }
         }
         currentRefSegment = null;
@@ -728,12 +771,29 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                   <Button 
                     variant="light-blue-outline" 
                     size="sm"
+                    className='w-full'
                     onClick={() => {
                       console.log('Show file button clicked for:', tag.id);
-                      handleShowFile(tag.id, tag.text || []);
+                      handleShowFile(tag.id, tag.text || '');
                     }}
                   >
                     Show File
+                  </Button>
+                  <Button 
+                    variant="purple-outline" 
+                    size="sm"
+                    className='w-full mt-2'
+                    onClick={() => {
+                      console.log('Show file button clicked for:', tag.id);
+                      handleSearchReferenceAgain(message.id, tag.text? tag.text : '', message, tag.id);
+                    }}
+                  >
+                    {searchingRefs[tag.id] ? (
+                      <div className="flex items-center justify-center">
+                        <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+                        <span>Searching...</span>
+                      </div>
+                    ) : 'Search Reference Again'}
                   </Button>
                 </div>
               )}
@@ -989,5 +1049,6 @@ export const ChatMessage = React.memo(ChatMessageComponent, (prev, next) =>
   prev.message.content === next.message.content &&
   JSON.stringify(prev.message.citations || []) === JSON.stringify(next.message.citations || []) &&
   prev.onClickCitation === next.onClickCitation &&
-  prev.onShowFile === next.onShowFile // Add onShowFile to memo comparison
+  prev.onShowFile === next.onShowFile && // Add onShowFile to memo comparison
+  prev.onMessageUpdated === next.onMessageUpdated // Add onMessageUpdated to memo comparison
 );

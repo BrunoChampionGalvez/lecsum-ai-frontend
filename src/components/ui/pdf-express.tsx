@@ -16,7 +16,7 @@ const PdfViewerClient = dynamic(
 
 interface PdfViewerProps {
   pdfUrl: string | null;
-  textSnippets?: string[];
+  textSnippet?: string;
   paperId?: string | null;
   shouldExtractText?: boolean;
   onTextExtractionComplete?: (success: boolean) => void;
