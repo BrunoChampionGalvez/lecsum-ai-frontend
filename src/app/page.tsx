@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { PublicRoute } from "../components/auth/PublicRoute";
+import Image from "next/image";
 
 export default function Home() {
   return (
@@ -53,11 +54,13 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            <div className="bg-white rounded-lg overflow-hidden shadow-lg p-4 flex items-center justify-center">
-              <div className="relative w-full aspect-video bg-[var(--light-blue)] rounded-lg flex items-center justify-center">
-                <span className="text-[var(--primary)]">App Screenshot</span>
-              </div>
-            </div>
+            <Image
+              width={600}
+              height={400}
+              className="rounded-lg shadow-xl"
+              src="/hero-illustration.png"
+              alt="LecSum AI Interface"
+            />
           </div>
         </section>
 
