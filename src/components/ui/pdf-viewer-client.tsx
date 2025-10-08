@@ -1,6 +1,6 @@
 'use client'; // Client-side only component for PDFjs Express
 
-import WebViewer from '@pdftron/pdfjs-express-viewer';
+import WebViewer, { type WebViewerInstance } from '@pdftron/pdfjs-express-viewer';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
 
@@ -23,7 +23,7 @@ export const PdfViewerClient = ({
 }: PdfViewerClientProps) => {
     const viewer = useRef<HTMLDivElement>(null);
     const [error, setError] = useState<string | null>(null);
-    const instanceRef = useRef<any>(null);
+    const instanceRef = useRef<WebViewerInstance | null>(null);
     const [isExtracting, setIsExtracting] = useState(false);
     const [extractionProgress, setExtractionProgress] = useState(0);
 
@@ -88,16 +88,17 @@ export const PdfViewerClient = ({
             });
     
             // adding an event listener for when the page number has changed
-            Core.documentViewer.addEventListener('pageNumberUpdated', (pageNumber: number) => {
+            Core.documentViewer.addEventListener('pageNumberUpdated', (arg?: unknown) => {
+              const pageNumber = arg as number;
               console.log(`Page number is: ${pageNumber}`);
             });
             
             // Handle errors
-            instance.Core.documentViewer.addEventListener('documentLoadingFailed', (err: any) => {
+            Core.documentViewer.addEventListener('documentLoadingFailed', (err: unknown) => {
               console.error('Document loading failed:', err);
               setError('Failed to load PDF. Please check if the URL is correct.');
             });
-          }).catch((err: any) => {
+          }).catch((err: unknown) => {
             console.error('Error initializing WebViewer:', err);
             setError('Failed to initialize PDF viewer');
           });
@@ -106,17 +107,20 @@ export const PdfViewerClient = ({
         return () => {
             if (instanceRef.current) {
                 console.log('Cleaning up WebViewer instance on unmount/change');
-                instanceRef.current.UI.dispose();
-                instanceRef.current.UI = null;
-                instanceRef.current.Core.documentViewer.dispose();
-                instanceRef.current.Core.documentViewer = null;
+                try {
+                    instanceRef.current.UI.dispose();
+                    instanceRef.current.Core.documentViewer.dispose();
+                } catch (err) {
+                    console.error('Error during cleanup:', err);
+                }
                 instanceRef.current = null;
             }
         };
-    }, [pdfUrl, shouldExtractText, paperId, textSnippets]); // Add dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pdfUrl]); // Other dependencies are handled via refs or callbacks
     
     // Function to extract text with batching
-    const extractTextFromPdf = useCallback(async (instance: any, paperIdToExtract: string) => {
+    const extractTextFromPdf = useCallback(async (instance: WebViewerInstance, paperIdToExtract: string) => {
         if (isExtracting) return;
         
         try {

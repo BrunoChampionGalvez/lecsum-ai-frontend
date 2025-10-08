@@ -80,7 +80,6 @@ import { PdfViewer } from "../ui/pdf-express";
 import { AppFile } from "@/lib/api";
 
 export const LecsiChatSidebar: React.FC = () => {
-  const [hover, setHover] = useState(false);
   const { user, isLoading: authLoading } = useAuth();
   const { 
     isSidebarOpen: open, 
@@ -129,9 +128,7 @@ export const LecsiChatSidebar: React.FC = () => {
   const [showFileDisplay, setShowFileDisplay] = useState(false);
   const [currentFileId, setCurrentFileId] = useState<string | null>(null);
   const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
-  const [fileContent, setFileContent] = useState<string | null>(null);
   const [currentFile, setCurrentFile] = useState<Partial<AppFile> | null>(null);
-  const [textSnippets, setTextSnippets] = useState<string[]>([]);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   
   // Track whether we're currently loading sessions to prevent duplicate requests
@@ -1341,7 +1338,7 @@ export const LecsiChatSidebar: React.FC = () => {
   };
 
   // Function to handle showing a file
-  const handleShowFile = async (fileId: string, textSnippets: string[]) => {
+  const handleShowFile = async (fileId: string) => {
     if (!fileId) {
       console.error('Invalid file ID provided to handleShowFile');
       return;
@@ -1354,11 +1351,9 @@ export const LecsiChatSidebar: React.FC = () => {
     try {
       // Fetch file content from the API
       const response: File | null = await apiClient.get(`/files/${fileId}`);
-      setFileContent(response ? response.content : ''); // Use content or empty string if not available
       setCurrentFilePath(`https://storage.googleapis.com/lecsum-ai-files/${response?.path || ''}`);
     } catch (error) {
       console.error('Error fetching file content:', error);
-      setFileContent('Error loading file content. Please try again.');
       setErrorMessage('Failed to load file content');
     } finally {
       setIsLoadingFile(false);
@@ -1369,10 +1364,6 @@ export const LecsiChatSidebar: React.FC = () => {
   const handleHideFileDisplay = () => {
     setShowFileDisplay(false);
     setCurrentFileId(null);
-    // Don't clear content immediately for a smoother transition
-    setTimeout(() => {
-      setFileContent(null);
-    }, 300); // Match the transition duration
   };
 
   return (
@@ -1408,8 +1399,6 @@ export const LecsiChatSidebar: React.FC = () => {
           borderRadius: showFileDisplay ? '0 0.5rem 0.5rem 0' : '0.5rem 0 0 0.5rem',
           display: showFileDisplay && isMobile ? 'none' : 'block',
         }}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
         onClick={() => setOpen(!open)}
         aria-label={open ? "Hide Lecsi chat" : "Show Lecsi chat"}
       >
@@ -1819,7 +1808,7 @@ export const LecsiChatSidebar: React.FC = () => {
                 <div className="prose prose-slate max-w-none">
                   <PdfViewer 
                     pdfUrl={currentFilePath}
-                    textSnippets={textSnippets} 
+                    textSnippets={[]} 
                     paperId={currentFileId}
                     shouldExtractText={!currentFile?.textExtracted}
                     onTextExtractionComplete={handleTextExtractionComplete}
