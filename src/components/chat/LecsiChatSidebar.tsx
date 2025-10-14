@@ -76,8 +76,6 @@ interface ChatSession {
 
 import { MessageRole } from "../../lib/api/chat.service";
 import { AxiosError } from 'axios'; // Added for error typing
-import { PdfViewer } from "../ui/pdf-express";
-import { AppFile } from "@/lib/api";
 
 export const LecsiChatSidebar: React.FC = () => {
   const { user, isLoading: authLoading } = useAuth();
@@ -126,10 +124,6 @@ export const LecsiChatSidebar: React.FC = () => {
 
   // New state for file display
   const [showFileDisplay, setShowFileDisplay] = useState(false);
-  const [currentFileId, setCurrentFileId] = useState<string | null>(null);
-  const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
-  const [currentFile, setCurrentFile] = useState<Partial<AppFile> | null>(null);
-  const [isLoadingFile, setIsLoadingFile] = useState(false);
   
   // Track whether we're currently loading sessions to prevent duplicate requests
   const isLoadingSessionsRef = useRef(false);
@@ -554,37 +548,6 @@ export const LecsiChatSidebar: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-
-  // Function to fetch papers (refresh the papers list)
-  const fetchPapers = async () => {
-    try {
-      const response: AppFile = await apiClient.get(`/files`, {
-        params: { fileId: currentFileId }
-      });
-      
-      // If we have a selected paper, update it with the fresh data
-      if (response) {
-        setCurrentFileId(response.id);
-        setCurrentFilePath(`https://storage.googleapis.com/lecsum-ai-files/${response.path}` || null);
-        setCurrentFile(response);
-      }
-    } catch (error) {
-      console.error('Error fetching papers:', error);
-      toast.error('Failed to refresh papers list');
-    }
-  };
-
-
-  // Handlers for text extraction
-  const handleTextExtractionComplete = (success: boolean) => {
-    if (success) {
-      toast.success('PDF text extraction completed successfully');
-      // Refresh the paper list to get the updated textExtracted status
-      fetchPapers();
-    } else {
-      toast.error('Failed to extract text from PDF');
-    }
-  };
 
   // Fetch and process study materials
   const searchStudyMaterials = async (query: string) => {
@@ -1337,33 +1300,9 @@ export const LecsiChatSidebar: React.FC = () => {
     }
   };
 
-  // Function to handle showing a file
-  const handleShowFile = async (fileId: string) => {
-    if (!fileId) {
-      console.error('Invalid file ID provided to handleShowFile');
-      return;
-    }
-    
-    setCurrentFileId(fileId);
-    setIsLoadingFile(true);
-    setShowFileDisplay(true);
-    
-    try {
-      // Fetch file content from the API
-      const response: File | null = await apiClient.get(`/files/${fileId}`);
-      setCurrentFilePath(`https://storage.googleapis.com/lecsum-ai-files/${response?.path || ''}`);
-    } catch (error) {
-      console.error('Error fetching file content:', error);
-      setErrorMessage('Failed to load file content');
-    } finally {
-      setIsLoadingFile(false);
-    }
-  };
-
   // Function to hide the file display
   const handleHideFileDisplay = () => {
     setShowFileDisplay(false);
-    setCurrentFileId(null);
   };
 
   return (
@@ -1572,7 +1511,6 @@ export const LecsiChatSidebar: React.FC = () => {
                       selectedMaterials: msg.selectedMaterials,
                     }}
                     onClickCitation={() => {}}
-                    onShowFile={handleShowFile} // Pass the handleShowFile function
                   />
                 ))
               )}
@@ -1796,29 +1734,6 @@ export const LecsiChatSidebar: React.FC = () => {
                 <span className="font-semibold text-lg">File Viewer</span>
               </div>
               <button onClick={handleHideFileDisplay} aria-label="Close file viewer" className="text-xl font-bold hover:text-[var(--orange-light)]">×</button>
-            </div>
-            
-            {/* File Display Content */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {isLoadingFile ? (
-                <div className="flex justify-center items-center h-full">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--primary)]"></div>
-                </div>
-              ) : currentFilePath && showFileDisplay ? (
-                <div className="prose prose-slate max-w-none">
-                  <PdfViewer 
-                    pdfUrl={currentFilePath}
-                    textSnippets={[]} 
-                    paperId={currentFileId}
-                    shouldExtractText={!currentFile?.textExtracted}
-                    onTextExtractionComplete={handleTextExtractionComplete}
-                  />
-                </div>
-              ) : (
-                <div className="flex justify-center items-center h-full text-gray-500">
-                  No file content available
-                </div>
-              )}
             </div>
           </motion.div>
         )}

@@ -21,7 +21,6 @@ const referenceTypeMap = {
 interface ChatMessageProps {
   message: ChatMessageType;
   onClickCitation?: (fileId: string, excerpt: string) => void;
-  onShowFile?: (fileId: string, textSnippet: string[]) => void; // Added prop for handling file display
 }
 
 interface ReferenceTag {
@@ -157,7 +156,6 @@ const QuizQuestionModal: React.FC<{
 const ChatMessageComponent: React.FC<ChatMessageProps> = ({ 
   message,
   // onClickCitation, // Removed as it's unused
-  onShowFile, // Add the new prop
 }) => {
   const [activeFlashcard, setActiveFlashcard] = useState<Flashcard | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<QuizQuestion | null>(null);
@@ -416,15 +414,6 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         updatedAt: new Date().toISOString(), // Placeholder
         quizId: 'unknown' // Placeholder
       });
-    }
-  };
-
-  // New function to handle showing a file
-  const handleShowFile = (fileId: string, textSnippets: string[]) => {
-    if (onShowFile) {
-      onShowFile(fileId, textSnippets);
-    } else {
-      console.warn('onShowFile prop is not provided to ChatMessage component');
     }
   };
 
@@ -953,6 +942,5 @@ export const ChatMessage = React.memo(ChatMessageComponent, (prev, next) =>
   prev.message.id === next.message.id &&
   prev.message.content === next.message.content &&
   JSON.stringify(prev.message.citations || []) === JSON.stringify(next.message.citations || []) &&
-  prev.onClickCitation === next.onClickCitation &&
-  prev.onShowFile === next.onShowFile // Add onShowFile to memo comparison
+  prev.onClickCitation === next.onClickCitation
 );
