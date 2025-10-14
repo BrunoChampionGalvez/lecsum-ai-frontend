@@ -3,8 +3,28 @@
 import Link from "next/link";
 import { PublicRoute } from "../components/auth/PublicRoute";
 import Image from "next/image";
+import { useAuth } from "../lib/auth/AuthContext";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+  const { login } = useAuth();
+  const router = useRouter();
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
+
+  const handleDemoLogin = async () => {
+    setIsDemoLoading(true);
+    try {
+      await login("demo@mail.com", "Test*1234!");
+      router.push("/dashboard");
+    } catch (error) {
+      console.error("Demo login failed:", error);
+      alert("Demo login failed. Please try again.");
+    } finally {
+      setIsDemoLoading(false);
+    }
+  };
+
   return (
     <PublicRoute>
     <div className="min-h-screen flex flex-col bg-[var(--background)]">
@@ -15,6 +35,13 @@ export default function Home() {
             <span className="text-2xl font-bold text-[var(--primary)]">LecSum AI</span>
           </div>
           <nav className="flex space-x-4">
+            <button
+              onClick={handleDemoLogin}
+              disabled={isDemoLoading}
+              className="cursor-pointer px-4 py-2 rounded-md text-[var(--orange)] hover:bg-[var(--orange-light)] transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDemoLoading ? "Loading..." : "Demo"}
+            </button>
             <Link 
               href="/login"
               className="px-4 py-2 rounded-md text-[var(--primary)] hover:bg-[var(--light-blue)] transition-all duration-200"
