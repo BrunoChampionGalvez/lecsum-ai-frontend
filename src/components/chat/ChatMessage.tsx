@@ -702,20 +702,6 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
               </div>
               {/* File content snippet already shown above */}
               <div className="text-xs text-gray-500 mt-1"><span className="font-semibold">Path:</span> {displayPath}</div>
-              {/* Show file button - pass the content directly */}
-              {!isDeleted && tag.id && (
-                <div className="mt-2">
-                  <Button 
-                    variant="light-blue-outline" 
-                    size="sm"
-                    onClick={() => {
-                      handleShowFile(tag.id, tag.text || []);
-                    }}
-                  >
-                    Show File
-                  </Button>
-                </div>
-              )}
             </div>
           </div>
         );
